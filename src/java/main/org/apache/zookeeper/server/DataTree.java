@@ -439,14 +439,16 @@ public class DataTree {
     }
 
     /**
-     * @param path
-     * @param data
-     * @param acl
-     * @param ephemeralOwner
+     * 创建一个节点
+     *
+     * @param path 路径
+     * @param data 数据
+     * @param acl 访问控制
+     * @param ephemeralOwner 拥有这个node 的session id
      *            the session id that owns this node. -1 indicates this is not
      *            an ephemeral node.
-     * @param zxid
-     * @param time
+     * @param zxid zxid
+     * @param time 时间
      * @return the patch of the created node
      * @throws KeeperException
      */
@@ -456,6 +458,7 @@ public class DataTree {
             KeeperException.NodeExistsException {
         int lastSlash = path.lastIndexOf('/');
         String parentName = path.substring(0, lastSlash);
+        // 获取parentName
         String childName = path.substring(lastSlash + 1);
         StatPersisted stat = new StatPersisted();
         stat.setCtime(time);
@@ -468,27 +471,35 @@ public class DataTree {
         stat.setEphemeralOwner(ephemeralOwner);
         DataNode parent = nodes.get(parentName);
         if (parent == null) {
+            // 根据路径解析出 ParentNode
             throw new KeeperException.NoNodeException();
         }
+        // 对parent进行同步处理
         synchronized (parent) {
+            //在创建node的时候，需要parent Node存在才可以创建，不能循环创建 parent
             Set<String> children = parent.getChildren();
+            //校验重复
             if (children != null) {
                 if (children.contains(childName)) {
                     throw new KeeperException.NodeExistsException();
                 }
             }
-            
+
+            // parent 的版本号增加
             if (parentCVersion == -1) {
                 parentCVersion = parent.stat.getCversion();
                 parentCVersion++;
-            }    
+            }
             parent.stat.setCversion(parentCVersion);
             parent.stat.setPzxid(zxid);
             Long longval = convertAcls(acl);
+            // 构建子节点
             DataNode child = new DataNode(parent, data, longval, stat);
             parent.addChild(childName);
+            // 增加到DataTree节点
             nodes.put(path, child);
             if (ephemeralOwner != 0) {
+                // 临时owner
                 HashSet<String> list = ephemerals.get(ephemeralOwner);
                 if (list == null) {
                     list = new HashSet<String>();
@@ -500,6 +511,10 @@ public class DataTree {
             }
         }
         // now check if its one of the zookeeper node child
+        // 为node设置quota指标，但是超过限制只会有警告，不会有异常WARN
+        // Quota exceeded: /zk count=9 limit=5
+        // listquota /nodepath
+        // setquota -n/-b param /nodepath
         if (parentName.startsWith(quotaZookeeper)) {
             // now check if its the limit node
             if (Quotas.limitNode.equals(childName)) {
@@ -507,6 +522,7 @@ public class DataTree {
                 // get the parent and add it to the trie
                 pTrie.addPath(parentName.substring(quotaZookeeper.length()));
             }
+            // zookeeper_stats 为节点状态
             if (Quotas.statNode.equals(childName)) {
                 updateQuotaForPath(parentName
                         .substring(quotaZookeeper.length()));
@@ -514,11 +530,13 @@ public class DataTree {
         }
         // also check to update the quotas for this node
         String lastPrefix;
+        // 更新节点的 quota信息，主要是count和bytes
         if((lastPrefix = getMaxPrefixWithQuota(path)) != null) {
             // ok we have some match and need to update
             updateCount(lastPrefix, 1);
             updateBytes(lastPrefix, data == null ? 0 : data.length);
         }
+        // 调用watcher触发
         dataWatches.triggerWatch(path, Event.EventType.NodeCreated);
         childWatches.triggerWatch(parentName.equals("") ? "/" : parentName,
                 Event.EventType.NodeChildrenChanged);
@@ -543,6 +561,7 @@ public class DataTree {
         if (node == null) {
             throw new KeeperException.NoNodeException();
         }
+        // 首先直接移除
         nodes.remove(path);
         DataNode parent = nodes.get(parentName);
         if (parent == null) {
@@ -573,6 +592,7 @@ public class DataTree {
 
         // also check to update the quotas for this node
         String lastPrefix;
+        // 更新quota
         if((lastPrefix = getMaxPrefixWithQuota(path)) != null) {
             // ok we have some match and need to update
             updateCount(lastPrefix, -1);
@@ -595,6 +615,7 @@ public class DataTree {
                 EventType.NodeChildrenChanged);
     }
 
+    // 设Data值 并返回 Stat(设置后的节点状态信息)
     public Stat setData(String path, byte data[], int version, long zxid,
             long time) throws KeeperException.NoNodeException {
         Stat s = new Stat();
@@ -641,12 +662,21 @@ public class DataTree {
         }
     }
 
+    /**
+     * 取值
+     * @param path
+     * @param stat
+     * @param watcher
+     * @return
+     * @throws KeeperException.NoNodeException
+     */
     public byte[] getData(String path, Stat stat, Watcher watcher)
             throws KeeperException.NoNodeException {
         DataNode n = nodes.get(path);
         if (n == null) {
             throw new KeeperException.NoNodeException();
         }
+        // 同步
         synchronized (n) {
             n.copyStat(stat);
             if (watcher != null) {
@@ -667,11 +697,13 @@ public class DataTree {
             throw new KeeperException.NoNodeException();
         }
         synchronized (n) {
+            // 设置stat 并返回
             n.copyStat(stat);
             return stat;
         }
     }
 
+    //获取 child
     public List<String> getChildren(String path, Stat stat, Watcher watcher)
             throws KeeperException.NoNodeException {
         DataNode n = nodes.get(path);
@@ -698,6 +730,7 @@ public class DataTree {
         }
     }
 
+    // acl
     public Stat setACL(String path, List<ACL> acl, int version)
             throws KeeperException.NoNodeException {
         Stat stat = new Stat();
@@ -773,6 +806,13 @@ public class DataTree {
 
     public volatile long lastProcessedZxid = 0;
 
+    /**
+     * 执行 Transaction
+     *
+     * @param header header
+     * @param txn transaction
+     * @return 执行结果
+     */
     public ProcessTxnResult processTxn(TxnHeader header, Record txn)
     {
         ProcessTxnResult rc = new ProcessTxnResult();
@@ -877,6 +917,7 @@ public class DataTree {
                             assert(subtxn.getType() == OpCode.error) ;
                         }
 
+                        // cycle process multi op
                         TxnHeader subHdr = new TxnHeader(header.getClientId(), header.getCxid(),
                                                          header.getZxid(), header.getTime(), 
                                                          subtxn.getType());
@@ -907,10 +948,16 @@ public class DataTree {
          * for zxid associated with the snapshot file, since the restore
          * method assumes that transaction to be present in the snapshot.
          *
+         * 执行snapshot的时候，可能正在修改DataTree，如果先设置 LastProcessZxid，
+         * 则有可能zxid先于content被写入到snapshot file，因此，当从snapshot中恢复的时候，
+         * restore方法可能不会执行这个zxid对应的Transaction，因为其认为，Transaction的执行结果已经存在了
+         *
          * To avoid this, we first apply the transaction and then modify
          * lastProcessedZxid.  During restore, we correctly handle the
          * case where the snapshot contains data ahead of the zxid associated
          * with the file.
+         *
+         * 因此我们会先执行Transaction，然后再修改lastProcessedZxid
          */
         if (rc.zxid > lastProcessedZxid) {
         	lastProcessedZxid = rc.zxid;
@@ -922,6 +969,11 @@ public class DataTree {
          * is serialized. Therefore, while replaying logs during restore, a
          * create might fail because the node was already
          * created.
+         *
+         * Snapshot 是lazily创建的，因此可能parent被序列化成文件之后，这个parent下的child才被创建。
+         *
+         * 因此，当restore重放log的时候，可能会出现创建异常。
+         * （？有点不理解，如果child后创建，parent先实例化）
          *
          * After seeing this failure, we should increment
          * the cversion of the parent znode since the parent was serialized
@@ -1179,6 +1231,7 @@ public class DataTree {
         }
     }
 
+    //序列化
     public void serialize(OutputArchive oa, String tag) throws IOException {
         scount = 0;
         serializeList(longKeyMap, oa);
@@ -1190,6 +1243,9 @@ public class DataTree {
         }
     }
 
+    /**
+     * 反序列化
+     */
     public void deserialize(InputArchive ia, String tag) throws IOException {
         deserializeList(longKeyMap, ia);
         nodes.clear();

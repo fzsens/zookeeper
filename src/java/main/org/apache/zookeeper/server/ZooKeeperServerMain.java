@@ -49,6 +49,10 @@ public class ZooKeeperServerMain {
      */
     public static void main(String[] args) {
         ZooKeeperServerMain main = new ZooKeeperServerMain();
+        if(args == null || args.length <=0) {
+            args = new String[1];
+            args[0] = "E:\\work\\TRD\\zookeeper\\conf\\zoo_sample.cfg";
+        }
         try {
             main.initializeAndRun(args);
         } catch (IllegalArgumentException e) {

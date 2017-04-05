@@ -51,6 +51,7 @@ public class FileTxnSnapLog {
     //the directory containing the
     //the snapshot directory
     private final File snapDir;
+    //snapshot和transaction log构成了zk故障恢复的基础
     private TxnLog txnLog;
     private SnapShot snapLog;
     public final static int VERSION = 2;
@@ -115,6 +116,8 @@ public class FileTxnSnapLog {
     }
     
     /**
+     * 从snapshot和transaction log中恢复zk server的数据
+     * 这个方法返回需要重新执行的 zxid
      * this function restores the server 
      * database after reading from the 
      * snapshots and transaction logs
@@ -127,9 +130,13 @@ public class FileTxnSnapLog {
      */
     public long restore(DataTree dt, Map<Long, Integer> sessions, 
             PlayBackListener listener) throws IOException {
+        // 将snapshot写入到data tree中
         snapLog.deserialize(dt, sessions);
+        // Transaction Log
         FileTxnLog txnLog = new FileTxnLog(dataDir);
+        // 从最后一个处理过的Transaction Record开始继续处理
         TxnIterator itr = txnLog.read(dt.lastProcessedZxid+1);
+        // 已经处理过的Transaction中编号最大的
         long highestZxid = dt.lastProcessedZxid;
         TxnHeader hdr;
         try {
@@ -138,7 +145,8 @@ public class FileTxnSnapLog {
                 // the first valid txn when initialized
                 hdr = itr.getHeader();
                 if (hdr == null) {
-                    //empty logs 
+                    //empty logs
+                    // txnLog 已经没有更多的 transaction
                     return dt.lastProcessedZxid;
                 }
                 if (hdr.getZxid() < highestZxid && highestZxid != 0) {
@@ -149,6 +157,7 @@ public class FileTxnSnapLog {
                     highestZxid = hdr.getZxid();
                 }
                 try {
+                    // 在Data Tree 中执行Transaction 恢复
                     processTransaction(hdr,dt,sessions, itr.getTxn());
                 } catch(KeeperException.NoNodeException e) {
                    throw new IOException("Failed to process transaction type: " +
@@ -167,6 +176,7 @@ public class FileTxnSnapLog {
     }
     
     /**
+     * 向dt 中写入 transaction
      * process the transaction on the datatree
      * @param hdr the hdr of the transaction
      * @param dt the datatree to apply transaction to
