@@ -203,6 +203,7 @@ public class ZKDatabase {
 
     
     /**
+     * 从磁盘中还原数据到DataTree
      * load the database from the disk onto memory and also add 
      * the transactions to the committedlog in memory.
      * @return the last valid zxid on disk
@@ -226,6 +227,7 @@ public class ZKDatabase {
     }
     
     /**
+     * 维护committedLog，用于快速实现follower同步
      * maintains a list of last <i>committedLog</i>
      *  or so committed requests. This is used for
      * fast follower synchronization.

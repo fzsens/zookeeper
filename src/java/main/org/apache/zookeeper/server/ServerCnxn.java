@@ -38,6 +38,9 @@ import org.apache.zookeeper.proto.ReplyHeader;
 import org.apache.zookeeper.proto.RequestHeader;
 
 /**
+ *
+ * 客户端和服务器之间的连接抽象
+ *
  * Interface to a Server connection - represents a connection from a client
  * to the server.
  */

@@ -94,8 +94,10 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
      */
     private static  boolean failCreate = false;
 
+    // 请求队列
     LinkedBlockingQueue<Request> submittedRequests = new LinkedBlockingQueue<Request>();
 
+    // request chain
     RequestProcessor nextProcessor;
 
     ZooKeeperServer zks;
@@ -119,6 +121,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
     public void run() {
         try {
             while (true) {
+                // 循环处理 submitted Requests中的数据
                 Request request = submittedRequests.take();
                 long traceMask = ZooTrace.CLIENT_REQUEST_TRACE_MASK;
                 if (request.type == OpCode.ping) {
@@ -146,6 +149,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
     ChangeRecord getRecordForPath(String path) throws KeeperException.NoNodeException {
         ChangeRecord lastChange = null;
         synchronized (zks.outstandingChanges) {
+            // 加入待修改的 parent path
             lastChange = zks.outstandingChangesForPath.get(path);
             if (lastChange == null) {
                 DataNode n = zks.getZKDatabase().getNode(path);
@@ -328,6 +332,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 zks.sessionTracker.checkSession(request.sessionId, request.getOwner());
                 CreateRequest createRequest = (CreateRequest)record;   
                 if(deserialize)
+                    // 将request反序列化为 createRequest
                     ByteBufferInputStream.byteBuffer2Record(request.request, createRequest);
                 String path = createRequest.getPath();
                 int lastSlash = path.lastIndexOf('/');
@@ -340,6 +345,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 if (!fixupACL(request.authInfo, listACL)) {
                     throw new KeeperException.InvalidACLException(path);
                 }
+
                 String parentPath = path.substring(0, lastSlash);
                 ChangeRecord parentRecord = getRecordForPath(parentPath);
 
@@ -374,6 +380,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 parentRecord = parentRecord.duplicate(request.hdr.getZxid());
                 parentRecord.childCount++;
                 parentRecord.stat.setCversion(newCversion);
+                // 添加造 zookeeper server 的 outstandingchangeredordlist中
                 addChangeRecord(parentRecord);
                 addChangeRecord(new ChangeRecord(request.hdr.getZxid(), path, s,
                         0, listACL));
@@ -508,6 +515,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 request.txn = new CheckVersionTxn(path, version);
                 break;
         }
+        // 处理完成
     }
 
     private void validatePath(String path, long sessionId) throws BadArgumentsException {
@@ -536,6 +544,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
         try {
             switch (request.type) {
                 case OpCode.create:
+                    // 请求
                 CreateRequest createRequest = new CreateRequest();
                 pRequest2Txn(request.type, zks.getNextZxid(), request, createRequest, true);
                 break;
@@ -676,6 +685,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
             }
         }
         request.zxid = zks.getZxid();
+        // 下一个 processor 进行处理
         nextProcessor.processRequest(request);
     }
 

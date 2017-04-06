@@ -33,11 +33,13 @@ import org.apache.zookeeper.txn.TxnHeader;
 public interface TxnLog {
     
     /**
+     * 找到开始log可以开始append的地方
      * roll the current
      * log being appended to
      * @throws IOException 
      */
     void rollLog() throws IOException;
+
     /**
      * Append a request to the transaction log
      * @param hdr the transaction header

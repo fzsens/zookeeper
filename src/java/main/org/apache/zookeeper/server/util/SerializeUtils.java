@@ -110,6 +110,13 @@ public class SerializeUtils {
         return txn;
     }
 
+    /**
+     * 从 snapshot文件中反序列化出 DataTree
+     * @param dt
+     * @param ia
+     * @param sessions
+     * @throws IOException
+     */
     public static void deserializeSnapshot(DataTree dt,InputArchive ia,
             Map<Long, Integer> sessions) throws IOException {
         int count = ia.readInt("count");

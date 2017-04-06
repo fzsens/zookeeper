@@ -32,6 +32,8 @@ import org.slf4j.LoggerFactory;
  * the io efficiently. The request is not passed to the next RequestProcessor
  * until its log has been synced to disk.
  *
+ * 先将请求同步到磁盘，在转发给FinalRequestProcessor
+ *
  * SyncRequestProcessor is used in 3 different cases
  * 1. Leader - Sync request to disk and forward it to AckRequestProcessor which
  *             send ack back to itself.
@@ -47,6 +49,7 @@ import org.slf4j.LoggerFactory;
 public class SyncRequestProcessor extends ZooKeeperCriticalThread implements RequestProcessor {
     private static final Logger LOG = LoggerFactory.getLogger(SyncRequestProcessor.class);
     private final ZooKeeperServer zks;
+    // 等待处理的 Request
     private final LinkedBlockingQueue<Request> queuedRequests =
         new LinkedBlockingQueue<Request>();
     private final RequestProcessor nextProcessor;
@@ -138,7 +141,9 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
                 if (si != null) {
                     // track the number of records written to the log
                     if (zks.getZKDatabase().append(si)) {
+                        // 添加成功
                         logCount++;
+                        // 是否要进行 snapshot
                         if (logCount > (snapCount / 2 + randRoll)) {
                             randRoll = r.nextInt(snapCount/2);
                             // roll the log
@@ -156,6 +161,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
                                             }
                                         }
                                     };
+                                // create snapshot
                                 snapInProcess.start();
                             }
                             logCount = 0;
@@ -227,6 +233,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
         }
     }
 
+    //  被 PrepRequestProcessor 调用 将请求写入 Queue，等待后续的处理
     public void processRequest(Request request) {
         // request.addRQRec(">sync");
         queuedRequests.add(request);

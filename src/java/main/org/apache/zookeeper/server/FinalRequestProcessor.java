@@ -66,6 +66,7 @@ import org.apache.zookeeper.OpResult.SetDataResult;
 import org.apache.zookeeper.OpResult.ErrorResult;
 
 /**
+ * 真正执行 Transaction
  * This Request processor actually applies any transaction associated with a
  * request and services any queries. It is always at the end of a
  * RequestProcessor chain (hence the name), so it does not have a nextProcessor
@@ -83,6 +84,7 @@ public class FinalRequestProcessor implements RequestProcessor {
         this.zks = zks;
     }
 
+    // 处理request
     public void processRequest(Request request) {
         if (LOG.isDebugEnabled()) {
             LOG.debug("Processing request:: " + request);
@@ -96,6 +98,7 @@ public class FinalRequestProcessor implements RequestProcessor {
             ZooTrace.logRequest(LOG, traceMask, 'E', request, "");
         }
         ProcessTxnResult rc = null;
+        // 处理放在outstandingchanges中的record
         synchronized (zks.outstandingChanges) {
             while (!zks.outstandingChanges.isEmpty()
                     && zks.outstandingChanges.get(0).zxid <= request.zxid) {
@@ -401,6 +404,7 @@ public class FinalRequestProcessor implements RequestProcessor {
                     request.createTime, System.currentTimeMillis());
 
         try {
+            // 向客户端返回响应
             cnxn.sendResponse(hdr, rsp, "response");
             if (closeSession) {
                 cnxn.sendCloseSession();

@@ -172,7 +172,7 @@ public class ZooKeeperServerMainTest extends ZKTestCase implements Watcher {
     /**
      * Test verifies the auto creation of data dir and data log dir.
      */
-    @Test(timeout = 30000)
+    @Test(timeout = 3000000)
     public void testAutoCreateDataLogDir() throws Exception {
         ClientBase.setupTestEnv();
         final int CLIENT_PORT = PortAssignment.unique();

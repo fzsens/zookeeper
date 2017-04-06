@@ -6,9 +6,9 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
+ * <p>
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * <p>
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,6 +18,9 @@
 
 package org.apache.zookeeper.server;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -26,14 +29,7 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Set;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.*;
 
 /**
  * Zk 默认使用NIO进行网络通信资源的管理
@@ -49,7 +45,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
          */
         try {
             Selector.open().close();
-        } catch(IOException ie) {
+        } catch (IOException ie) {
             LOG.error("Selector failed to open", ie);
         }
     }
@@ -62,11 +58,11 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
      * We use this buffer to do efficient socket I/O. Since there is a single
      * sender thread per NIOServerCnxn instance, we can use a member variable to
      * only allocate it once.
-    */
+     */
     final ByteBuffer directBuffer = ByteBuffer.allocateDirect(64 * 1024);
 
     final HashMap<InetAddress, Set<NIOServerCnxn>> ipMap =
-        new HashMap<InetAddress, Set<NIOServerCnxn>>( );
+            new HashMap<InetAddress, Set<NIOServerCnxn>>();
 
     int maxClientCnxns = 60;
 
@@ -74,12 +70,14 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
      * Construct a new server connection factory which will accept an unlimited number
      * of concurrent connections from each client (up to the file descriptor
      * limits of the operating system). startup(zks) must be called subsequently.
+     *
      * @throws IOException
      */
     public NIOServerCnxnFactory() throws IOException {
     }
 
     Thread thread;
+
     @Override
     public void configure(InetSocketAddress addr, int maxcc) throws IOException {
         configureSaslLogin();
@@ -95,12 +93,16 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
         ss.register(selector, SelectionKey.OP_ACCEPT);
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     public int getMaxClientCnxnsPerHost() {
         return maxClientCnxns;
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     public void setMaxClientCnxnsPerHost(int max) {
         maxClientCnxns = max;
     }
@@ -115,6 +117,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
 
     /**
      * 启动 zkserver
+     *
      * @param zks
      * @throws IOException
      * @throws InterruptedException
@@ -124,24 +127,26 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
             InterruptedException {
         start();
         setZooKeeperServer(zks);
+        // 加载数据
         zks.startdata();
+        // 处理启动
         zks.startup();
     }
 
     @Override
-    public InetSocketAddress getLocalAddress(){
-        return (InetSocketAddress)ss.socket().getLocalSocketAddress();
+    public InetSocketAddress getLocalAddress() {
+        return (InetSocketAddress) ss.socket().getLocalSocketAddress();
     }
 
     @Override
-    public int getLocalPort(){
+    public int getLocalPort() {
         return ss.socket().getLocalPort();
     }
 
     private void addCnxn(NIOServerCnxn cnxn) {
         synchronized (cnxns) {
             cnxns.add(cnxn);
-            synchronized (ipMap){
+            synchronized (ipMap) {
                 InetAddress addr = cnxn.sock.socket().getInetAddress();
                 Set<NIOServerCnxn> s = ipMap.get(addr);
                 if (s == null) {
@@ -152,7 +157,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
                     // to 2 to avoid rehash when the first entry is added
                     s = new HashSet<NIOServerCnxn>(2);
                     s.add(cnxn);
-                    ipMap.put(addr,s);
+                    ipMap.put(addr, s);
                 } else {
                     s.add(cnxn);
                 }
@@ -160,8 +165,15 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
         }
     }
 
+    /**
+     * 创建ServerCnxn，用于处理zk客户端的读写请求
+     * @param sock
+     * @param sk
+     * @return
+     * @throws IOException
+     */
     protected NIOServerCnxn createConnection(SocketChannel sock,
-            SelectionKey sk) throws IOException {
+                                             SelectionKey sk) throws IOException {
         return new NIOServerCnxn(zkServer, sock, sk, this);
     }
 
@@ -176,9 +188,11 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
         }
     }
 
+    //监听zk client的请求
     public void run() {
         while (!ss.socket().isClosed()) {
             try {
+                // 1s
                 selector.select(1000);
                 Set<SelectionKey> selected;
                 synchronized (this) {
@@ -189,31 +203,36 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
                 Collections.shuffle(selectedList);
                 for (SelectionKey k : selectedList) {
                     if ((k.readyOps() & SelectionKey.OP_ACCEPT) != 0) {
+                        //连接
                         SocketChannel sc = ((ServerSocketChannel) k
                                 .channel()).accept();
+                        //client ip
                         InetAddress ia = sc.socket().getInetAddress();
                         int cnxncount = getClientCnxnCount(ia);
-                        if (maxClientCnxns > 0 && cnxncount >= maxClientCnxns){
+                        if (maxClientCnxns > 0 && cnxncount >= maxClientCnxns) {
                             LOG.warn("Too many connections from " + ia
-                                     + " - max is " + maxClientCnxns );
+                                    + " - max is " + maxClientCnxns);
                             sc.close();
                         } else {
                             LOG.info("Accepted socket connection from "
-                                     + sc.socket().getRemoteSocketAddress());
+                                    + sc.socket().getRemoteSocketAddress());
                             sc.configureBlocking(false);
                             SelectionKey sk = sc.register(selector,
                                     SelectionKey.OP_READ);
+                            // 存储附件
                             NIOServerCnxn cnxn = createConnection(sc, sk);
                             sk.attach(cnxn);
                             addCnxn(cnxn);
                         }
                     } else if ((k.readyOps() & (SelectionKey.OP_READ | SelectionKey.OP_WRITE)) != 0) {
+                        // 读写请求
                         NIOServerCnxn c = (NIOServerCnxn) k.attachment();
+                        // 处理请求
                         c.doIO(k);
                     } else {
                         if (LOG.isDebugEnabled()) {
                             LOG.debug("Unexpected ops in select "
-                                      + k.readyOps());
+                                    + k.readyOps());
                         }
                     }
                 }
@@ -229,8 +248,8 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
     }
 
     /**
+     * 关闭所有的客户端连接
      * clear all the connections in the selector
-     *
      */
     @Override
     @SuppressWarnings("unchecked")
@@ -238,20 +257,21 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
         selector.wakeup();
         HashSet<NIOServerCnxn> cnxns;
         synchronized (this.cnxns) {
-            cnxns = (HashSet<NIOServerCnxn>)this.cnxns.clone();
+            cnxns = (HashSet<NIOServerCnxn>) this.cnxns.clone();
         }
         // got to clear all the connections that we have in the selector
-        for (NIOServerCnxn cnxn: cnxns) {
+        for (NIOServerCnxn cnxn : cnxns) {
             try {
                 // don't hold this.cnxns lock as deadlock may occur
                 cnxn.close();
             } catch (Exception e) {
                 LOG.warn("Ignoring exception closing cnxn sessionid 0x"
-                         + Long.toHexString(cnxn.sessionId), e);
+                        + Long.toHexString(cnxn.sessionId), e);
             }
         }
     }
 
+    // shutdown NIOServerCnxnFactory
     public void shutdown() {
         try {
             ss.close();
@@ -278,6 +298,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
 
     @Override
     public synchronized void closeSession(long sessionId) {
+        // 使得下一次 select 调用立刻返回
         selector.wakeup();
         closeSessionWithoutWakeup(sessionId);
     }
@@ -286,7 +307,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
     private void closeSessionWithoutWakeup(long sessionId) {
         HashSet<NIOServerCnxn> cnxns;
         synchronized (this.cnxns) {
-            cnxns = (HashSet<NIOServerCnxn>)this.cnxns.clone();
+            cnxns = (HashSet<NIOServerCnxn>) this.cnxns.clone();
         }
 
         for (NIOServerCnxn cnxn : cnxns) {

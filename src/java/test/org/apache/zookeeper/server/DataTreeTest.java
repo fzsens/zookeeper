@@ -70,7 +70,7 @@ public class DataTreeTest extends ZKTestCase {
      */
     @Test(timeout = 60000)
     public void testDumpEphemerals() throws Exception {
-        int count = 1000;
+        int count = 5;
         long session = 1000;
         long zxid = 2000;
         final DataTree dataTree = new DataTree();

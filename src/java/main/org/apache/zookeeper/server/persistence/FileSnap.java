@@ -62,8 +62,11 @@ public class FileSnap implements SnapShot {
 
     /**
      * deserialize a data tree from the most recent snapshot
-     * @return the zxid of the snapshot
-     */ 
+     *
+     * 从最近的 100个snapshot中进行反序列化
+     *
+     * @return the zxid of the snapshot 当前snapshot处理过的最后一个zxid
+    */
     public long deserialize(DataTree dt, Map<Long, Integer> sessions)
             throws IOException {
         // we run through 100 snapshots (not all of them)
@@ -91,15 +94,16 @@ public class FileSnap implements SnapShot {
                     throw new IOException("CRC corruption in snapshot :  " + snap);
                 }
                 foundValid = true;
+                // 实际上只是从最大编号的snapshot中还原
                 break;
             } catch(IOException e) {
                 LOG.warn("problem reading snap file " + snap, e);
             } finally {
-                if (snapIS != null) 
+                if (snapIS != null)
                     snapIS.close();
-                if (crcIn != null) 
+                if (crcIn != null)
                     crcIn.close();
-            } 
+            }
         }
         if (!foundValid) {
             throw new IOException("Not able to find valid snapshots in " + snapDir);
@@ -119,9 +123,10 @@ public class FileSnap implements SnapShot {
             InputArchive ia) throws IOException {
         FileHeader header = new FileHeader();
         header.deserialize(ia, "fileheader");
+        //文件头校验
         if (header.getMagic() != SNAP_MAGIC) {
             throw new IOException("mismatching magic headers "
-                    + header.getMagic() + 
+                    + header.getMagic() +
                     " !=  " + FileSnap.SNAP_MAGIC);
         }
         SerializeUtils.deserializeSnapshot(dt,ia,sessions);
@@ -138,7 +143,7 @@ public class FileSnap implements SnapShot {
         }
         return files.get(0);
     }
-    
+
     /**
      * find the last (maybe) valid n snapshots. this does some 
      * minor checks on the validity of the snapshots. It just
