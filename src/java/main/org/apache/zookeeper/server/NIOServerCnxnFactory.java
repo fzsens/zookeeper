@@ -83,6 +83,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
         configureSaslLogin();
 
         thread = new ZooKeeperThread(this, "NIOServerCxn.Factory:" + addr);
+        // 后台运行
         thread.setDaemon(true);
         maxClientCnxns = maxcc;
         this.ss = ServerSocketChannel.open();
@@ -125,7 +126,9 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
     @Override
     public void startup(ZooKeeperServer zks) throws IOException,
             InterruptedException {
+        // 设置线程状态为启动，并开始NIO监听
         start();
+        // 设置Zookeeper Server
         setZooKeeperServer(zks);
         // 加载数据
         zks.startdata();
@@ -209,6 +212,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
                         //client ip
                         InetAddress ia = sc.socket().getInetAddress();
                         int cnxncount = getClientCnxnCount(ia);
+                        // 限制客户端连接数
                         if (maxClientCnxns > 0 && cnxncount >= maxClientCnxns) {
                             LOG.warn("Too many connections from " + ia
                                     + " - max is " + maxClientCnxns);
@@ -217,9 +221,10 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory implements Runnable 
                             LOG.info("Accepted socket connection from "
                                     + sc.socket().getRemoteSocketAddress());
                             sc.configureBlocking(false);
+                            //确认连接channel可读
                             SelectionKey sk = sc.register(selector,
                                     SelectionKey.OP_READ);
-                            // 存储附件
+                            //将cnxn作为存储附件
                             NIOServerCnxn cnxn = createConnection(sc, sk);
                             sk.attach(cnxn);
                             addCnxn(cnxn);

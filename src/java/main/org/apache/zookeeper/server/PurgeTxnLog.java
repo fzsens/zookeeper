@@ -97,6 +97,7 @@ public class PurgeTxnLog {
                 if(!f.getName().startsWith(prefix + "."))
                     return false;
                 long fZxid = Util.getZxidFromName(f.getName(), prefix);
+                // 根据文件的末尾zxid标记判断是否删除
                 if (fZxid >= leastZxidToBeRetain) {
                     return false;
                 }

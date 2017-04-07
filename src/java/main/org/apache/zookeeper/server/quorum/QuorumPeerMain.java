@@ -17,20 +17,19 @@
  */
 package org.apache.zookeeper.server.quorum;
 
-import java.io.File;
-import java.io.IOException;
-
-import javax.management.JMException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.zookeeper.jmx.ManagedUtil;
+import org.apache.zookeeper.server.DatadirCleanupManager;
 import org.apache.zookeeper.server.ServerCnxnFactory;
 import org.apache.zookeeper.server.ZKDatabase;
-import org.apache.zookeeper.server.DatadirCleanupManager;
 import org.apache.zookeeper.server.ZooKeeperServerMain;
 import org.apache.zookeeper.server.persistence.FileTxnSnapLog;
 import org.apache.zookeeper.server.quorum.QuorumPeerConfig.ConfigException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.management.JMException;
+import java.io.File;
+import java.io.IOException;
 
 /**
  *
@@ -76,11 +75,6 @@ public class QuorumPeerMain {
     public static void main(String[] args) {
         QuorumPeerMain main = new QuorumPeerMain();
         try {
-            if(args == null || args.length <= 0)
-            {
-                args = new String[1];
-                args[0] = "E:\\workspace\\fzsens\\zookeeper\\conf\\zoo_sample.cfg";
-            }
             main.initializeAndRun(args);
         } catch (IllegalArgumentException e) {
             LOG.error("Invalid arguments, exiting abnormally", e);

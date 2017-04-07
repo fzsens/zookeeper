@@ -427,6 +427,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                         request.authInfo);
                 version = setDataRequest.getVersion();
                 int currentVersion = nodeRecord.stat.getVersion();
+                // ¿÷π€À¯–£—È
                 if (version != -1 && version != currentVersion) {
                     throw new KeeperException.BadVersionException(path);
                 }

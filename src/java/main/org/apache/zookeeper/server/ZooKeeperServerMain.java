@@ -49,10 +49,6 @@ public class ZooKeeperServerMain {
      */
     public static void main(String[] args) {
         ZooKeeperServerMain main = new ZooKeeperServerMain();
-        if(args == null || args.length <=0) {
-            args = new String[1];
-            args[0] = "E:\\work\\TRD\\zookeeper\\conf\\zoo_sample.cfg";
-        }
         try {
             main.initializeAndRun(args);
         } catch (IllegalArgumentException e) {
@@ -88,7 +84,7 @@ public class ZooKeeperServerMain {
             LOG.warn("Unable to register log4j JMX control", e);
         }
 
-        // zk.cfg 作为初始化条件
+        // zoo.cfg 作为初始化条件
         ServerConfig config = new ServerConfig();
         if (args.length == 1) {
             config.parse(args[0]);
@@ -101,7 +97,6 @@ public class ZooKeeperServerMain {
 
     /**
      * 开始启动
-     *
      * Run from a ServerConfig.
      * @param config ServerConfig to use.
      * @throws IOException
@@ -119,6 +114,7 @@ public class ZooKeeperServerMain {
             // 创建txn log文件
             txnLog = new FileTxnSnapLog(new File(config.dataLogDir), new File(
                     config.dataDir));
+
             zkServer.setTxnLogFactory(txnLog);
             zkServer.setTickTime(config.tickTime);
             zkServer.setMinSessionTimeout(config.minSessionTimeout);

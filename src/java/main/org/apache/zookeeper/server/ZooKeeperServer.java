@@ -411,6 +411,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             throws IOException, InterruptedException {
         //check to see if zkDb is not null
         if (zkDb == null) {
+            // 根据snapshot创建zbdb
             zkDb = new ZKDatabase(this.txnLogFactory);
         }
         if (!zkDb.isInitialized()) {

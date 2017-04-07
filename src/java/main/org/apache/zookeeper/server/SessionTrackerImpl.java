@@ -34,6 +34,8 @@ import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.SessionExpiredException;
 
 /**
+ * 回话管理和跟踪
+ *
  * This is a full featured SessionTracker. It tracks session in grouped by tick
  * interval. It always rounds up the tick interval to provide a sort of grace
  * period. Sessions are thus expired in batches made up of sessions that expire
