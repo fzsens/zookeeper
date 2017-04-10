@@ -47,11 +47,16 @@ import org.apache.zookeeper.server.ZooKeeperThread;
  * maintains one connection for every pair of servers. The tricky part is to
  * guarantee that there is exactly one connection for every pair of servers that
  * are operating correctly and that can communicate over the network.
+ *
+ * 通过TCP协议管理选举过程中的每个连接
+ *
  * 
  * If two servers try to start a connection concurrently, then the connection
  * manager uses a very simple tie-breaking mechanism to decide which connection
- * to drop based on the IP addressed of the two parties. 
- * 
+ * to drop based on the IP addressed of the two parties.
+ *
+ * 如果两个机器并发发起连接，使用的比较sid大小的方式决出胜负，只允许sid大的连接sid小的，不允许sid小的连接dis大的
+ *
  * For every peer, the manager maintains a queue of messages to send. If the
  * connection to any particular peer drops, then the sender thread puts the
  * message back on the list. As this implementation currently uses a queue
@@ -59,7 +64,9 @@ import org.apache.zookeeper.server.ZooKeeperThread;
  * message to the tail of the queue, thus changing the order of messages.
  * Although this is not a problem for the leader election, it could be a problem
  * when consolidating peer communication. This is to be verified, though.
- * 
+ *
+ * 维护消息队列，
+ *
  */
 
 public class QuorumCnxManager {
@@ -145,6 +152,9 @@ public class QuorumCnxManager {
         long sid;
     }
 
+    /**
+     * Leader election 期间管理网络IO
+     */
     public QuorumCnxManager(QuorumPeer self) {
         this.recvQueue = new ArrayBlockingQueue<Message>(RECV_CAPACITY);
         this.queueSendMap = new ConcurrentHashMap<Long, ArrayBlockingQueue<ByteBuffer>>();
@@ -382,6 +392,7 @@ public class QuorumCnxManager {
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("Connected to server " + sid);
                 }
+                // 初始化连接
                 initiateConnection(sock, sid);
             } catch (UnresolvedAddressException e) {
                 // Sun doesn't include the address that causes this
@@ -502,6 +513,7 @@ public class QuorumCnxManager {
     }
 
     /**
+     * 选举时候的监听器
      * Thread to listen on some port
      */
     public class Listener extends ZooKeeperThread {

@@ -28,6 +28,8 @@ import org.apache.zookeeper.data.Stat;
  * Asynchronous calls usually improve system efficiency on IO-related APIs.
  * <p/>
  * ZooKeeper provides asynchronous version as equivalent to synchronous APIs.
+ *
+ * 回调方法接口
  */
 public interface AsyncCallback {
 
