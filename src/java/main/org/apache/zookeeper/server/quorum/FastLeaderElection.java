@@ -532,7 +532,7 @@ public class FastLeaderElection implements Election {
     public FastLeaderElection(QuorumPeer self, QuorumCnxManager manager) {
         this.stop = false;
         this.manager = manager;
-        // 初始化之后
+        // 初始化之后，启动消息发送和接受的监听
         starter(self, manager);
     }
 
@@ -631,6 +631,7 @@ public class FastLeaderElection implements Election {
         }
         
         /*
+         * 本质上是需要选出zxid最大的服务器
          * We return true if one of the following three cases hold:
          * 1- New epoch is higher
          * 2- New epoch is the same as current epoch, but new zxid is higher
@@ -927,6 +928,7 @@ public class FastLeaderElection implements Election {
                             if (termPredicate(recvset,
                                     new Vote(proposedLeader, proposedZxid,
                                             logicalclock, proposedEpoch))) {
+                                // 判断是否有节点，收到了半数的投票
 
                                 // Verify if there is any change in the proposed leader
                                 while ((n = recvqueue.poll(finalizeWait,

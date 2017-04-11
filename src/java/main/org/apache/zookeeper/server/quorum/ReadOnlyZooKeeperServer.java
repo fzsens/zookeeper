@@ -29,6 +29,7 @@ import org.apache.zookeeper.server.ZooKeeperServerBean;
 import org.apache.zookeeper.server.persistence.FileTxnSnapLog;
 
 /**
+ * Ö»¶Á°æ±¾µÄzookeeper server
  * A ZooKeeperServer which comes into play when peer is partitioned from the
  * majority. Handles read-only clients, but drops connections from not-read-only
  * ones.
