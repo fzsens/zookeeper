@@ -121,6 +121,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     static final private long superSecret = 0XB3415C00L;
 
     private final AtomicInteger requestsInProcess = new AtomicInteger(0);
+    // 未完成的ChangeRecord
     final List<ChangeRecord> outstandingChanges = new ArrayList<ChangeRecord>();
     // this data structure must be accessed under the outstandingChanges lock
     final HashMap<String, ChangeRecord> outstandingChangesForPath =
@@ -529,6 +530,9 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         requestsInProcess.incrementAndGet();
     }
 
+    /**
+     * 减少一个正在处理的Request
+     */
     public void decInProcess() {
         requestsInProcess.decrementAndGet();
     }
@@ -538,6 +542,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     /**
+     * 在PrepRP和FinalRP之间共享数据
      * This structure is used to facilitate information sharing between PrepRP
      * and FinalRP.
      */

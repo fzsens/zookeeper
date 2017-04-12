@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
  * the io efficiently. The request is not passed to the next RequestProcessor
  * until its log has been synced to disk.
  *
- * ÏÈ½«ÇëÇóÍ¬²½µ½´ÅÅÌ£¬ÔÚ×ª·¢¸øFinalRequestProcessor
+ * å…ˆå°†è¯·æ±‚åŒæ­¥åˆ°ç£ç›˜ï¼Œåœ¨è½¬å‘ç»™FinalRequestProcessor
  *
  * SyncRequestProcessor is used in 3 different cases
  * 1. Leader - Sync request to disk and forward it to AckRequestProcessor which
@@ -49,9 +49,9 @@ import org.slf4j.LoggerFactory;
 public class SyncRequestProcessor extends ZooKeeperCriticalThread implements RequestProcessor {
     private static final Logger LOG = LoggerFactory.getLogger(SyncRequestProcessor.class);
     private final ZooKeeperServer zks;
-    // µÈ´ı´¦ÀíµÄ Request
+    // ç­‰å¾…å¤„ç†çš„ Request
     private final LinkedBlockingQueue<Request> queuedRequests =
-        new LinkedBlockingQueue<Request>();
+            new LinkedBlockingQueue<Request>();
     private final RequestProcessor nextProcessor;
 
     private Thread snapInProcess = null;
@@ -68,7 +68,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
      * The number of log entries to log before starting a snapshot
      */
     private static int snapCount = ZooKeeperServer.getSnapCount();
-    
+
     /**
      * The number of log entries before rolling the log, number
      * is chosen randomly
@@ -78,14 +78,14 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
     private final Request requestOfDeath = Request.requestOfDeath;
 
     public SyncRequestProcessor(ZooKeeperServer zks,
-            RequestProcessor nextProcessor) {
+                                RequestProcessor nextProcessor) {
         super("SyncThread:" + zks.getServerId(), zks
                 .getZooKeeperServerListener());
         this.zks = zks;
         this.nextProcessor = nextProcessor;
         running = true;
     }
-    
+
     /**
      * used by tests to check for changing
      * snapcounts
@@ -103,13 +103,13 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
     public static int getSnapCount() {
         return snapCount;
     }
-    
+
     /**
      * Sets the value of randRoll. This method 
      * is here to avoid a findbugs warning for
      * setting a static variable in an instance
      * method. 
-     * 
+     *
      * @param roll
      */
     private static void setRandRoll(int roll) {
@@ -120,9 +120,9 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
     public void run() {
         try {
             int logCount = 0;
-
             // we do this in an attempt to ensure that not all of the servers
             // in the ensemble take a snapshot at the same time
+            // é¿å…æ‰€æœ‰çš„serversåŒæ—¶è¿›è¡Œå¿«ç…§è½¬å‚¨
             setRandRoll(r.nextInt(snapCount/2));
             while (true) {
                 Request si = null;
@@ -141,9 +141,9 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
                 if (si != null) {
                     // track the number of records written to the log
                     if (zks.getZKDatabase().append(si)) {
-                        // Ìí¼Ó³É¹¦
+                        // æ·»åŠ æˆåŠŸ
                         logCount++;
-                        // ÊÇ·ñÒª½øĞĞ snapshot
+                        // æ˜¯å¦è¦è¿›è¡Œ snapshot
                         if (logCount > (snapCount / 2 + randRoll)) {
                             randRoll = r.nextInt(snapCount/2);
                             // roll the log
@@ -153,14 +153,14 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
                                 LOG.warn("Too busy to snap, skipping");
                             } else {
                                 snapInProcess = new ZooKeeperThread("Snapshot Thread") {
-                                        public void run() {
-                                            try {
-                                                zks.takeSnapshot();
-                                            } catch(Exception e) {
-                                                LOG.warn("Unexpected exception", e);
-                                            }
+                                    public void run() {
+                                        try {
+                                            zks.takeSnapshot();
+                                        } catch(Exception e) {
+                                            LOG.warn("Unexpected exception", e);
                                         }
-                                    };
+                                    }
+                                };
                                 // create snapshot
                                 snapInProcess.start();
                             }
@@ -171,6 +171,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
                         // iff this is a read, and there are no pending
                         // flushes (writes), then just pass this to the next
                         // processor
+                        // å¯¹äºè¯»è¯·æ±‚ï¼Œç›´æ¥è½¬å‘ç»™ä¸‹ä¸€ä¸ªProcessorè¿›è¡Œå¤„ç†
                         if (nextProcessor != null) {
                             nextProcessor.processRequest(si);
                             if (nextProcessor instanceof Flushable) {
@@ -180,6 +181,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
                         continue;
                     }
                     toFlush.add(si);
+                    // å¯¹æ›´æ–°/æ–°å¢çš„äº‹åŠ¡è¿›è¡Œæ‰¹é‡åˆ·ç›˜
                     if (toFlush.size() > 1000) {
                         flush(toFlush);
                     }
@@ -193,8 +195,9 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
         LOG.info("SyncRequestProcessor exited!");
     }
 
+    // æ‰¹é‡åˆ·ç›˜
     private void flush(LinkedList<Request> toFlush)
-        throws IOException, RequestProcessorException
+            throws IOException, RequestProcessorException
     {
         if (toFlush.isEmpty())
             return;
@@ -233,7 +236,7 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
         }
     }
 
-    //  ±» PrepRequestProcessor µ÷ÓÃ ½«ÇëÇóĞ´Èë Queue£¬µÈ´ıºóĞøµÄ´¦Àí
+     //  è¢« PrepRequestProcessor è°ƒç”¨ å°†è¯·æ±‚å†™å…¥ Queueï¼Œç­‰å¾…åç»­çš„å¤„ç†
     public void processRequest(Request request) {
         // request.addRQRec(">sync");
         queuedRequests.add(request);

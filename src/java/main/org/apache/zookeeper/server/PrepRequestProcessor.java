@@ -94,7 +94,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
      */
     private static  boolean failCreate = false;
 
-    // �������
+    //请求队列
     LinkedBlockingQueue<Request> submittedRequests = new LinkedBlockingQueue<Request>();
 
     // request chain
@@ -103,7 +103,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
     ZooKeeperServer zks;
 
     public PrepRequestProcessor(ZooKeeperServer zks,
-            RequestProcessor nextProcessor) {
+                                RequestProcessor nextProcessor) {
         super("ProcessThread(sid:" + zks.getServerId() + " cport:"
                 + zks.getClientPort() + "):", zks.getZooKeeperServerListener());
         this.nextProcessor = nextProcessor;
@@ -121,7 +121,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
     public void run() {
         try {
             while (true) {
-                // ѭ������ submitted Requests�е�����
+                // 循环处理 submitted Requests中的数据
                 Request request = submittedRequests.take();
                 long traceMask = ZooTrace.CLIENT_REQUEST_TRACE_MASK;
                 if (request.type == OpCode.ping) {
@@ -146,10 +146,13 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
         LOG.info("PrepRequestProcessor exited loop!");
     }
 
+    /**
+     * 获取path对应的节点，如果之前有修改未执行完成，就选择；否则从DataTree中获取
+     */
     ChangeRecord getRecordForPath(String path) throws KeeperException.NoNodeException {
         ChangeRecord lastChange = null;
         synchronized (zks.outstandingChanges) {
-            // ������޸ĵ� parent path
+            // 加入待修改的 parent path
             lastChange = zks.outstandingChangesForPath.get(path);
             if (lastChange == null) {
                 DataNode n = zks.getZKDatabase().getNode(path);
@@ -161,7 +164,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                         children = n.getChildren();
                     }
                     lastChange = new ChangeRecord(-1, path, n.stat,
-                        children != null ? children.size() : 0,
+                            children != null ? children.size() : 0,
                             zks.getZKDatabase().convertLong(acl));
                 }
             }
@@ -187,7 +190,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
 
     /**
      * Grab current pending change records for each op in a multi-op.
-     * 
+     *
      * This is used inside MultiOp error code path to rollback in the event
      * of a failed multi-op.
      *
@@ -277,7 +280,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
     }
 
     static void checkACL(ZooKeeperServer zks, List<ACL> acl, int perm,
-            List<Id> ids) throws KeeperException.NoAuthException {
+                         List<Id> ids) throws KeeperException.NoAuthException {
         if (skipACL) {
             return;
         }
@@ -299,7 +302,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 AuthenticationProvider ap = ProviderRegistry.getProvider(id
                         .getScheme());
                 if (ap != null) {
-                    for (Id authId : ids) {                        
+                    for (Id authId : ids) {
                         if (authId.getScheme().equals(id.getScheme())
                                 && ap.matches(authId.getId(), id.getId())) {
                             return;
@@ -314,7 +317,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
     /**
      * This method will be called inside the ProcessRequestThread, which is a
      * singleton, so there will be a single thread calling this code.
-     *
+     * 将request转换为Transaction进行处理
      * @param type
      * @param zxid
      * @param request
@@ -322,18 +325,20 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
      */
     @SuppressWarnings("unchecked")
     protected void pRequest2Txn(int type, long zxid, Request request, Record record, boolean deserialize)
-        throws KeeperException, IOException, RequestProcessorException
+            throws KeeperException, IOException, RequestProcessorException
     {
         request.hdr = new TxnHeader(request.sessionId, request.cxid, zxid,
-                                    zks.getTime(), type);
+                zks.getTime(), type);
 
         switch (type) {
-            case OpCode.create:                
+            case OpCode.create:
+                // 检查session是否有效
                 zks.sessionTracker.checkSession(request.sessionId, request.getOwner());
-                CreateRequest createRequest = (CreateRequest)record;   
+                CreateRequest createRequest = (CreateRequest)record;
                 if(deserialize)
-                    // ��request�����л�Ϊ createRequest
+                    // 将request反序列化为 createRequest
                     ByteBufferInputStream.byteBuffer2Record(request.request, createRequest);
+                //需要创建的 path
                 String path = createRequest.getPath();
                 int lastSlash = path.lastIndexOf('/');
                 if (lastSlash == -1 || path.indexOf('\0') != -1 || failCreate) {
@@ -341,11 +346,13 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                             Long.toHexString(request.sessionId));
                     throw new KeeperException.BadArgumentsException(path);
                 }
+                //权限控制
                 List<ACL> listACL = removeDuplicates(createRequest.getAcl());
                 if (!fixupACL(request.authInfo, listACL)) {
                     throw new KeeperException.InvalidACLException(path);
                 }
 
+                //父亲节点
                 String parentPath = path.substring(0, lastSlash);
                 ChangeRecord parentRecord = getRecordForPath(parentPath);
 
@@ -353,34 +360,41 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                         request.authInfo);
                 int parentCVersion = parentRecord.stat.getCversion();
                 CreateMode createMode =
-                    CreateMode.fromFlag(createRequest.getFlags());
+                        CreateMode.fromFlag(createRequest.getFlags());
                 if (createMode.isSequential()) {
+                    // 处理seq节点
                     path = path + String.format(Locale.ENGLISH, "%010d", parentCVersion);
                 }
+                // check
                 validatePath(path, request.sessionId);
                 try {
+                    //已经存在，则不允许重复创建
                     if (getRecordForPath(path) != null) {
                         throw new KeeperException.NodeExistsException(path);
                     }
                 } catch (KeeperException.NoNodeException e) {
                     // ignore this one
                 }
+                //父亲节点不允许创建子节点
                 boolean ephemeralParent = parentRecord.stat.getEphemeralOwner() != 0;
                 if (ephemeralParent) {
                     throw new KeeperException.NoChildrenForEphemeralsException(path);
                 }
                 int newCversion = parentRecord.stat.getCversion()+1;
+                //构造request中的transaction
                 request.txn = new CreateTxn(path, createRequest.getData(),
                         listACL,
                         createMode.isEphemeral(), newCversion);
                 StatPersisted s = new StatPersisted();
                 if (createMode.isEphemeral()) {
+                    //临时节点
                     s.setEphemeralOwner(request.sessionId);
                 }
+                // parent 的修改和 children节点的修改，共享一个zxid
                 parentRecord = parentRecord.duplicate(request.hdr.getZxid());
                 parentRecord.childCount++;
                 parentRecord.stat.setCversion(newCversion);
-                // ������ zookeeper server �� outstandingchangeredordlist��
+                // 添加到待处理的 change record中，继续后续的processor
                 addChangeRecord(parentRecord);
                 addChangeRecord(new ChangeRecord(request.hdr.getZxid(), path, s,
                         0, listACL));
@@ -427,7 +441,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                         request.authInfo);
                 version = setDataRequest.getVersion();
                 int currentVersion = nodeRecord.stat.getVersion();
-                // �ֹ���У��
+                // 乐观锁校验
                 if (version != -1 && version != currentVersion) {
                     throw new KeeperException.BadVersionException(path);
                 }
@@ -516,7 +530,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 request.txn = new CheckVersionTxn(path, version);
                 break;
         }
-        // �������
+        // 处理完成
     }
 
     private void validatePath(String path, long sessionId) throws BadArgumentsException {
@@ -541,117 +555,117 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
         // request.type + " id = 0x" + Long.toHexString(request.sessionId));
         request.hdr = null;
         request.txn = null;
-        
+
         try {
             switch (request.type) {
                 case OpCode.create:
-                    // ����
-                CreateRequest createRequest = new CreateRequest();
-                pRequest2Txn(request.type, zks.getNextZxid(), request, createRequest, true);
-                break;
-            case OpCode.delete:
-                DeleteRequest deleteRequest = new DeleteRequest();               
-                pRequest2Txn(request.type, zks.getNextZxid(), request, deleteRequest, true);
-                break;
-            case OpCode.setData:
-                SetDataRequest setDataRequest = new SetDataRequest();                
-                pRequest2Txn(request.type, zks.getNextZxid(), request, setDataRequest, true);
-                break;
-            case OpCode.setACL:
-                SetACLRequest setAclRequest = new SetACLRequest();                
-                pRequest2Txn(request.type, zks.getNextZxid(), request, setAclRequest, true);
-                break;
-            case OpCode.check:
-                CheckVersionRequest checkRequest = new CheckVersionRequest();              
-                pRequest2Txn(request.type, zks.getNextZxid(), request, checkRequest, true);
-                break;
-            case OpCode.multi:
-                MultiTransactionRecord multiRequest = new MultiTransactionRecord();
-                try {
-                    ByteBufferInputStream.byteBuffer2Record(request.request, multiRequest);
-                } catch(IOException e) {
-                   request.hdr =  new TxnHeader(request.sessionId, request.cxid, zks.getNextZxid(),
-                            zks.getTime(), OpCode.multi);
-                   throw e;
-                }
-                List<Txn> txns = new ArrayList<Txn>();
-                //Each op in a multi-op must have the same zxid!
-                long zxid = zks.getNextZxid();
-                KeeperException ke = null;
+                    // 请求
+                    CreateRequest createRequest = new CreateRequest();
+                    pRequest2Txn(request.type, zks.getNextZxid(), request, createRequest, true);
+                    break;
+                case OpCode.delete:
+                    DeleteRequest deleteRequest = new DeleteRequest();
+                    pRequest2Txn(request.type, zks.getNextZxid(), request, deleteRequest, true);
+                    break;
+                case OpCode.setData:
+                    SetDataRequest setDataRequest = new SetDataRequest();
+                    pRequest2Txn(request.type, zks.getNextZxid(), request, setDataRequest, true);
+                    break;
+                case OpCode.setACL:
+                    SetACLRequest setAclRequest = new SetACLRequest();
+                    pRequest2Txn(request.type, zks.getNextZxid(), request, setAclRequest, true);
+                    break;
+                case OpCode.check:
+                    CheckVersionRequest checkRequest = new CheckVersionRequest();
+                    pRequest2Txn(request.type, zks.getNextZxid(), request, checkRequest, true);
+                    break;
+                case OpCode.multi:
+                    MultiTransactionRecord multiRequest = new MultiTransactionRecord();
+                    try {
+                        ByteBufferInputStream.byteBuffer2Record(request.request, multiRequest);
+                    } catch(IOException e) {
+                        request.hdr =  new TxnHeader(request.sessionId, request.cxid, zks.getNextZxid(),
+                                zks.getTime(), OpCode.multi);
+                        throw e;
+                    }
+                    List<Txn> txns = new ArrayList<Txn>();
+                    //Each op in a multi-op must have the same zxid!
+                    long zxid = zks.getNextZxid();
+                    KeeperException ke = null;
 
-                //Store off current pending change records in case we need to rollback
-                HashMap<String, ChangeRecord> pendingChanges = getPendingChanges(multiRequest);
+                    //Store off current pending change records in case we need to rollback
+                    HashMap<String, ChangeRecord> pendingChanges = getPendingChanges(multiRequest);
 
-                int index = 0;
-                for(Op op: multiRequest) {
-                    Record subrequest = op.toRequestRecord() ;
+                    int index = 0;
+                    for(Op op: multiRequest) {
+                        Record subrequest = op.toRequestRecord() ;
 
                     /* If we've already failed one of the ops, don't bother
                      * trying the rest as we know it's going to fail and it
                      * would be confusing in the logfiles.
                      */
-                    if (ke != null) {
-                        request.hdr.setType(OpCode.error);
-                        request.txn = new ErrorTxn(Code.RUNTIMEINCONSISTENCY.intValue());
-                    } 
+                        if (ke != null) {
+                            request.hdr.setType(OpCode.error);
+                            request.txn = new ErrorTxn(Code.RUNTIMEINCONSISTENCY.intValue());
+                        }
                     
                     /* Prep the request and convert to a Txn */
-                    else {
-                        try {
-                            pRequest2Txn(op.getType(), zxid, request, subrequest, false);
-                        } catch (KeeperException e) {
-                            if (ke == null) {
-                                ke = e;
-                            }
-                            request.hdr.setType(OpCode.error);
-                            request.txn = new ErrorTxn(e.code().intValue());
-                            LOG.info("Got user-level KeeperException when processing "
-                            		+ request.toString() + " aborting remaining multi ops."
-                            		+ " Error Path:" + e.getPath()
-                            		+ " Error:" + e.getMessage());
+                        else {
+                            try {
+                                pRequest2Txn(op.getType(), zxid, request, subrequest, false);
+                            } catch (KeeperException e) {
+                                if (ke == null) {
+                                    ke = e;
+                                }
+                                request.hdr.setType(OpCode.error);
+                                request.txn = new ErrorTxn(e.code().intValue());
+                                LOG.info("Got user-level KeeperException when processing "
+                                        + request.toString() + " aborting remaining multi ops."
+                                        + " Error Path:" + e.getPath()
+                                        + " Error:" + e.getMessage());
 
-                            request.setException(e);
+                                request.setException(e);
 
                             /* Rollback change records from failed multi-op */
-                            rollbackPendingChanges(zxid, pendingChanges);
+                                rollbackPendingChanges(zxid, pendingChanges);
+                            }
                         }
+
+                        //FIXME: I don't want to have to serialize it here and then
+                        //       immediately deserialize in next processor. But I'm
+                        //       not sure how else to get the txn stored into our list.
+                        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                        BinaryOutputArchive boa = BinaryOutputArchive.getArchive(baos);
+                        request.txn.serialize(boa, "request") ;
+                        ByteBuffer bb = ByteBuffer.wrap(baos.toByteArray());
+
+                        txns.add(new Txn(request.hdr.getType(), bb.array()));
+                        index++;
                     }
 
-                    //FIXME: I don't want to have to serialize it here and then
-                    //       immediately deserialize in next processor. But I'm 
-                    //       not sure how else to get the txn stored into our list.
-                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                    BinaryOutputArchive boa = BinaryOutputArchive.getArchive(baos);
-                    request.txn.serialize(boa, "request") ;
-                    ByteBuffer bb = ByteBuffer.wrap(baos.toByteArray());
+                    request.hdr = new TxnHeader(request.sessionId, request.cxid, zxid, zks.getTime(), request.type);
+                    request.txn = new MultiTxn(txns);
 
-                    txns.add(new Txn(request.hdr.getType(), bb.array()));
-                    index++;
-                }
+                    break;
 
-                request.hdr = new TxnHeader(request.sessionId, request.cxid, zxid, zks.getTime(), request.type);
-                request.txn = new MultiTxn(txns);
-                
-                break;
+                //create/close session don't require request record
+                case OpCode.createSession:
+                case OpCode.closeSession:
+                    pRequest2Txn(request.type, zks.getNextZxid(), request, null, true);
+                    break;
 
-            //create/close session don't require request record
-            case OpCode.createSession:
-            case OpCode.closeSession:
-                pRequest2Txn(request.type, zks.getNextZxid(), request, null, true);
-                break;
- 
-            //All the rest don't need to create a Txn - just verify session
-            case OpCode.sync:
-            case OpCode.exists:
-            case OpCode.getData:
-            case OpCode.getACL:
-            case OpCode.getChildren:
-            case OpCode.getChildren2:
-            case OpCode.ping:
-            case OpCode.setWatches:
-                zks.sessionTracker.checkSession(request.sessionId,
-                        request.getOwner());
-                break;
+                //All the rest don't need to create a Txn - just verify session
+                case OpCode.sync:
+                case OpCode.exists:
+                case OpCode.getData:
+                case OpCode.getACL:
+                case OpCode.getChildren:
+                case OpCode.getChildren2:
+                case OpCode.ping:
+                case OpCode.setWatches:
+                    zks.sessionTracker.checkSession(request.sessionId,
+                            request.getOwner());
+                    break;
             }
         } catch (KeeperException e) {
             if (request.hdr != null) {
@@ -686,7 +700,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
             }
         }
         request.zxid = zks.getZxid();
-        // ��һ�� processor ���д���
+        // 下一个 processor 进行处理
         nextProcessor.processRequest(request);
     }
 
@@ -738,7 +752,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                 boolean authIdValid = false;
                 for (Id cid : authInfo) {
                     AuthenticationProvider ap =
-                        ProviderRegistry.getProvider(cid.getScheme());
+                            ProviderRegistry.getProvider(cid.getScheme());
                     if (ap == null) {
                         LOG.error("Missing AuthenticationProvider for "
                                 + cid.getScheme());

@@ -64,8 +64,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * ÔÚÄÚ´æÖĞÎ¬»¤ zkµÄÖ÷ÒªÊı¾İ½á¹¹
- * °üÀ¨ node ºÍsession ¡¢connections
+ * åœ¨å†…å­˜ä¸­ç»´æŠ¤ zkçš„ä¸»è¦æ•°æ®ç»“æ„
+ * åŒ…æ‹¬ node å’Œsession ã€connections
  * This class maintains the tree data structure. It doesn't have any networking
  * or client connection code in it so that it can be tested in a stand alone
  * way.
@@ -82,7 +82,7 @@ public class DataTree {
      * source of truth and is where all the locking occurs
      */
     private final ConcurrentHashMap<String, DataNode> nodes =
-        new ConcurrentHashMap<String, DataNode>();
+            new ConcurrentHashMap<String, DataNode>();
 
     private final WatchManager dataWatches = new WatchManager();
 
@@ -116,20 +116,20 @@ public class DataTree {
      * This hashtable lists the paths of the ephemeral nodes of a session.
      */
     private final Map<Long, HashSet<String>> ephemerals =
-        new ConcurrentHashMap<Long, HashSet<String>>();
+            new ConcurrentHashMap<Long, HashSet<String>>();
 
     /**
      * this is map from longs to acl's. It saves acl's being stored for each
      * datanode.
      */
     public final Map<Long, List<ACL>> longKeyMap =
-        new HashMap<Long, List<ACL>>();
+            new HashMap<Long, List<ACL>>();
 
     /**
      * this a map from acls to long.
      */
     public final Map<List<ACL>, Long> aclKeyMap =
-        new HashMap<List<ACL>, Long>();
+            new HashMap<List<ACL>, Long>();
 
     /**
      * these are the number of acls that we have in the datatree
@@ -388,9 +388,9 @@ public class DataTree {
         }
         if (thisStats.getCount() > -1 && (thisStats.getCount() < updatedStat.getCount())) {
             LOG
-            .warn("Quota exceeded: " + lastPrefix + " count="
-                    + updatedStat.getCount() + " limit="
-                    + thisStats.getCount());
+                    .warn("Quota exceeded: " + lastPrefix + " count="
+                            + updatedStat.getCount() + " limit="
+                            + thisStats.getCount());
         }
     }
 
@@ -434,33 +434,33 @@ public class DataTree {
         }
         if (thisStats.getBytes() > -1 && (thisStats.getBytes() < updatedStat.getBytes())) {
             LOG
-            .warn("Quota exceeded: " + lastPrefix + " bytes="
-                    + updatedStat.getBytes() + " limit="
-                    + thisStats.getBytes());
+                    .warn("Quota exceeded: " + lastPrefix + " bytes="
+                            + updatedStat.getBytes() + " limit="
+                            + thisStats.getBytes());
         }
     }
 
     /**
-     * ´´½¨Ò»¸ö½Úµã
+     * åˆ›å»ºä¸€ä¸ªèŠ‚ç‚¹
      *
-     * @param path Â·¾¶
-     * @param data Êı¾İ
-     * @param acl ·ÃÎÊ¿ØÖÆ
-     * @param ephemeralOwner ÓµÓĞÕâ¸önode µÄsession id
+     * @param path è·¯å¾„
+     * @param data æ•°æ®
+     * @param acl è®¿é—®æ§åˆ¶
+     * @param ephemeralOwner æ‹¥æœ‰è¿™ä¸ªnode çš„session id
      *            the session id that owns this node. -1 indicates this is not
      *            an ephemeral node.
      * @param zxid zxid
-     * @param time Ê±¼ä
+     * @param time æ—¶é—´
      * @return the patch of the created node
      * @throws KeeperException
      */
     public String createNode(String path, byte data[], List<ACL> acl,
-            long ephemeralOwner, int parentCVersion, long zxid, long time)
+                             long ephemeralOwner, int parentCVersion, long zxid, long time)
             throws KeeperException.NoNodeException,
             KeeperException.NodeExistsException {
         int lastSlash = path.lastIndexOf('/');
         String parentName = path.substring(0, lastSlash);
-        // »ñÈ¡parentName
+        // è·å–parentName
         String childName = path.substring(lastSlash + 1);
         StatPersisted stat = new StatPersisted();
         stat.setCtime(time);
@@ -473,21 +473,21 @@ public class DataTree {
         stat.setEphemeralOwner(ephemeralOwner);
         DataNode parent = nodes.get(parentName);
         if (parent == null) {
-            // ¸ù¾İÂ·¾¶½âÎö³ö ParentNode
+            // æ ¹æ®è·¯å¾„è§£æå‡º ParentNode
             throw new KeeperException.NoNodeException();
         }
-        // ¶Ôparent½øĞĞÍ¬²½´¦Àí
+        // å¯¹parentè¿›è¡ŒåŒæ­¥å¤„ç†
         synchronized (parent) {
-            //ÔÚ´´½¨nodeµÄÊ±ºò£¬ĞèÒªparent Node´æÔÚ²Å¿ÉÒÔ´´½¨£¬²»ÄÜÑ­»·´´½¨ parent
+            //åœ¨åˆ›å»ºnodeçš„æ—¶å€™ï¼Œéœ€è¦parent Nodeå­˜åœ¨æ‰å¯ä»¥åˆ›å»ºï¼Œä¸èƒ½å¾ªç¯åˆ›å»º parent
             Set<String> children = parent.getChildren();
-            //Ğ£ÑéÖØ¸´
+            //æ ¡éªŒé‡å¤
             if (children != null) {
                 if (children.contains(childName)) {
                     throw new KeeperException.NodeExistsException();
                 }
             }
 
-            // parent µÄ°æ±¾ºÅÔö¼Ó
+            // parent çš„ç‰ˆæœ¬å·å¢åŠ 
             if (parentCVersion == -1) {
                 parentCVersion = parent.stat.getCversion();
                 parentCVersion++;
@@ -495,13 +495,13 @@ public class DataTree {
             parent.stat.setCversion(parentCVersion);
             parent.stat.setPzxid(zxid);
             Long longval = convertAcls(acl);
-            // ¹¹½¨×Ó½Úµã
+            // æ„å»ºå­èŠ‚ç‚¹
             DataNode child = new DataNode(parent, data, longval, stat);
             parent.addChild(childName);
-            // Ôö¼Óµ½DataTree½Úµã
+            // å¢åŠ åˆ°DataTreeèŠ‚ç‚¹
             nodes.put(path, child);
             if (ephemeralOwner != 0) {
-                // ÁÙÊ±owner
+                // ä¸´æ—¶owner
                 HashSet<String> list = ephemerals.get(ephemeralOwner);
                 if (list == null) {
                     list = new HashSet<String>();
@@ -513,7 +513,7 @@ public class DataTree {
             }
         }
         // now check if its one of the zookeeper node child
-        // ÎªnodeÉèÖÃquotaÖ¸±ê£¬µ«ÊÇ³¬¹ıÏŞÖÆÖ»»áÓĞ¾¯¸æ£¬²»»áÓĞÒì³£WARN
+        // ä¸ºnodeè®¾ç½®quotaæŒ‡æ ‡ï¼Œä½†æ˜¯è¶…è¿‡é™åˆ¶åªä¼šæœ‰è­¦å‘Šï¼Œä¸ä¼šæœ‰å¼‚å¸¸WARN
         // Quota exceeded: /zk count=9 limit=5
         // listquota /nodepath
         // setquota -n/-b param /nodepath
@@ -524,7 +524,7 @@ public class DataTree {
                 // get the parent and add it to the trie
                 pTrie.addPath(parentName.substring(quotaZookeeper.length()));
             }
-            // zookeeper_stats Îª½Úµã×´Ì¬
+            // zookeeper_stats ä¸ºèŠ‚ç‚¹çŠ¶æ€
             if (Quotas.statNode.equals(childName)) {
                 updateQuotaForPath(parentName
                         .substring(quotaZookeeper.length()));
@@ -532,13 +532,13 @@ public class DataTree {
         }
         // also check to update the quotas for this node
         String lastPrefix;
-        // ¸üĞÂ½ÚµãµÄ quotaĞÅÏ¢£¬Ö÷ÒªÊÇcountºÍbytes
+        // æ›´æ–°èŠ‚ç‚¹çš„ quotaä¿¡æ¯ï¼Œä¸»è¦æ˜¯countå’Œbytes
         if((lastPrefix = getMaxPrefixWithQuota(path)) != null) {
             // ok we have some match and need to update
             updateCount(lastPrefix, 1);
             updateBytes(lastPrefix, data == null ? 0 : data.length);
         }
-        // µ÷ÓÃwatcher´¥·¢
+        // è°ƒç”¨watcherè§¦å‘
         dataWatches.triggerWatch(path, Event.EventType.NodeCreated);
         childWatches.triggerWatch(parentName.equals("") ? "/" : parentName,
                 Event.EventType.NodeChildrenChanged);
@@ -563,7 +563,7 @@ public class DataTree {
         if (node == null) {
             throw new KeeperException.NoNodeException();
         }
-        // Ê×ÏÈÖ±½ÓÒÆ³ı
+        // é¦–å…ˆç›´æ¥ç§»é™¤
         nodes.remove(path);
         DataNode parent = nodes.get(parentName);
         if (parent == null) {
@@ -594,7 +594,7 @@ public class DataTree {
 
         // also check to update the quotas for this node
         String lastPrefix;
-        // ¸üĞÂquota
+        // æ›´æ–°quota
         if((lastPrefix = getMaxPrefixWithQuota(path)) != null) {
             // ok we have some match and need to update
             updateCount(lastPrefix, -1);
@@ -617,9 +617,9 @@ public class DataTree {
                 EventType.NodeChildrenChanged);
     }
 
-    // ÉèDataÖµ ²¢·µ»Ø Stat(ÉèÖÃºóµÄ½Úµã×´Ì¬ĞÅÏ¢)
+    // è®¾Dataå€¼ å¹¶è¿”å› Stat(è®¾ç½®åçš„èŠ‚ç‚¹çŠ¶æ€ä¿¡æ¯)
     public Stat setData(String path, byte data[], int version, long zxid,
-            long time) throws KeeperException.NoNodeException {
+                        long time) throws KeeperException.NoNodeException {
         Stat s = new Stat();
         DataNode n = nodes.get(path);
         if (n == null) {
@@ -637,8 +637,8 @@ public class DataTree {
         // now update if the path is in a quota subtree.
         String lastPrefix;
         if((lastPrefix = getMaxPrefixWithQuota(path)) != null) {
-          this.updateBytes(lastPrefix, (data == null ? 0 : data.length)
-              - (lastdata == null ? 0 : lastdata.length));
+            this.updateBytes(lastPrefix, (data == null ? 0 : data.length)
+                    - (lastdata == null ? 0 : lastdata.length));
         }
         dataWatches.triggerWatch(path, EventType.NodeDataChanged);
         return s;
@@ -665,7 +665,7 @@ public class DataTree {
     }
 
     /**
-     * È¡Öµ
+     * å–å€¼
      * @param path
      * @param stat
      * @param watcher
@@ -678,7 +678,7 @@ public class DataTree {
         if (n == null) {
             throw new KeeperException.NoNodeException();
         }
-        // Í¬²½
+        // åŒæ­¥
         synchronized (n) {
             n.copyStat(stat);
             if (watcher != null) {
@@ -699,13 +699,13 @@ public class DataTree {
             throw new KeeperException.NoNodeException();
         }
         synchronized (n) {
-            // ÉèÖÃstat ²¢·µ»Ø
+            // è®¾ç½®stat å¹¶è¿”å›
             n.copyStat(stat);
             return stat;
         }
     }
 
-    //»ñÈ¡ child
+    //è·å– child
     public List<String> getChildren(String path, Stat stat, Watcher watcher)
             throws KeeperException.NoNodeException {
         DataNode n = nodes.get(path);
@@ -777,7 +777,7 @@ public class DataTree {
         public Stat stat;
 
         public List<ProcessTxnResult> multiResult;
-        
+
         /**
          * Equality is defined as the clientId and the cxid being the same. This
          * allows us to use hash tables to track completion of transactions.
@@ -809,11 +809,11 @@ public class DataTree {
     public volatile long lastProcessedZxid = 0;
 
     /**
-     * Ö´ĞĞ Transaction
+     * æ‰§è¡Œ Transaction
      *
      * @param header header
      * @param txn transaction
-     * @return Ö´ĞĞ½á¹û
+     * @return æ‰§è¡Œç»“æœ
      */
     public ProcessTxnResult processTxn(TxnHeader header, Record txn)
     {
@@ -906,10 +906,10 @@ public class DataTree {
                         assert(record != null);
 
                         ByteBufferInputStream.byteBuffer2Record(bb, record);
-                       
+
                         if (failed && subtxn.getType() != OpCode.error){
-                            int ec = post_failed ? Code.RUNTIMEINCONSISTENCY.intValue() 
-                                                 : Code.OK.intValue();
+                            int ec = post_failed ? Code.RUNTIMEINCONSISTENCY.intValue()
+                                    : Code.OK.intValue();
 
                             subtxn.setType(OpCode.error);
                             record = new ErrorTxn(ec);
@@ -921,8 +921,8 @@ public class DataTree {
 
                         // cycle process multi op
                         TxnHeader subHdr = new TxnHeader(header.getClientId(), header.getCxid(),
-                                                         header.getZxid(), header.getTime(), 
-                                                         subtxn.getType());
+                                header.getZxid(), header.getTime(),
+                                subtxn.getType());
                         ProcessTxnResult subRc = processTxn(subHdr, record);
                         rc.multiResult.add(subRc);
                         if (subRc.err != 0 && rc.err == 0) {
@@ -950,19 +950,19 @@ public class DataTree {
          * for zxid associated with the snapshot file, since the restore
          * method assumes that transaction to be present in the snapshot.
          *
-         * Ö´ĞĞsnapshotµÄÊ±ºò£¬¿ÉÄÜÕıÔÚĞŞ¸ÄDataTree£¬Èç¹ûÏÈÉèÖÃ LastProcessZxid£¬
-         * ÔòÓĞ¿ÉÄÜzxidÏÈÓÚcontent±»Ğ´Èëµ½snapshot file£¬Òò´Ë£¬µ±´ÓsnapshotÖĞ»Ö¸´µÄÊ±ºò£¬
-         * restore·½·¨¿ÉÄÜ²»»áÖ´ĞĞÕâ¸özxid¶ÔÓ¦µÄTransaction£¬ÒòÎªÆäÈÏÎª£¬TransactionµÄÖ´ĞĞ½á¹ûÒÑ¾­´æÔÚÁË
+         * æ‰§è¡Œsnapshotçš„æ—¶å€™ï¼Œå¯èƒ½æ­£åœ¨ä¿®æ”¹DataTreeï¼Œå¦‚æœå…ˆè®¾ç½® LastProcessZxidï¼Œ
+         * åˆ™æœ‰å¯èƒ½zxidå…ˆäºcontentè¢«å†™å…¥åˆ°snapshot fileï¼Œå› æ­¤ï¼Œå½“ä»snapshotä¸­æ¢å¤çš„æ—¶å€™ï¼Œ
+         * restoreæ–¹æ³•å¯èƒ½ä¸ä¼šæ‰§è¡Œè¿™ä¸ªzxidå¯¹åº”çš„Transactionï¼Œå› ä¸ºå…¶è®¤ä¸ºï¼ŒTransactionçš„æ‰§è¡Œç»“æœå·²ç»å­˜åœ¨äº†
          *
          * To avoid this, we first apply the transaction and then modify
          * lastProcessedZxid.  During restore, we correctly handle the
          * case where the snapshot contains data ahead of the zxid associated
          * with the file.
          *
-         * Òò´ËÎÒÃÇ»áÏÈÖ´ĞĞTransaction£¬È»ºóÔÙĞŞ¸ÄlastProcessedZxid
+         * å› æ­¤æˆ‘ä»¬ä¼šå…ˆæ‰§è¡ŒTransactionï¼Œç„¶åå†ä¿®æ”¹lastProcessedZxid
          */
         if (rc.zxid > lastProcessedZxid) {
-        	lastProcessedZxid = rc.zxid;
+            lastProcessedZxid = rc.zxid;
         }
 
         /*
@@ -972,10 +972,10 @@ public class DataTree {
          * create might fail because the node was already
          * created.
          *
-         * Snapshot ÊÇlazily´´½¨µÄ£¬Òò´Ë¿ÉÄÜparent±»ĞòÁĞ»¯³ÉÎÄ¼şÖ®ºó£¬Õâ¸öparentÏÂµÄchild²Å±»´´½¨¡£
+         * Snapshot æ˜¯lazilyåˆ›å»ºçš„ï¼Œå› æ­¤å¯èƒ½parentè¢«åºåˆ—åŒ–æˆæ–‡ä»¶ä¹‹åï¼Œè¿™ä¸ªparentä¸‹çš„childæ‰è¢«åˆ›å»ºã€‚
          *
-         * Òò´Ë£¬µ±restoreÖØ·ÅlogµÄÊ±ºò£¬¿ÉÄÜ»á³öÏÖ´´½¨Òì³£¡£
-         * £¨£¿ÓĞµã²»Àí½â£¬Èç¹ûchildºó´´½¨£¬parentÏÈÊµÀı»¯£©
+         * å› æ­¤ï¼Œå½“restoreé‡æ”¾logçš„æ—¶å€™ï¼Œå¯èƒ½ä¼šå‡ºç°åˆ›å»ºå¼‚å¸¸ã€‚
+         * ï¼ˆï¼Ÿæœ‰ç‚¹ä¸ç†è§£ï¼Œå¦‚æœchildååˆ›å»ºï¼Œparentå…ˆå®ä¾‹åŒ–ï¼‰
          *
          * After seeing this failure, we should increment
          * the cversion of the parent znode since the parent was serialized
@@ -996,12 +996,12 @@ public class DataTree {
                         header.getZxid());
             } catch (KeeperException.NoNodeException e) {
                 LOG.error("Failed to set parent cversion for: " +
-                      parentName, e);
+                        parentName, e);
                 rc.err = e.code().intValue();
             }
         } else if (rc.err != Code.OK.intValue()) {
             LOG.debug("Ignoring processTxn failure hdr: " + header.getType() +
-                  " : error: " + rc.err);
+                    " : error: " + rc.err);
         }
         return rc;
     }
@@ -1197,7 +1197,7 @@ public class DataTree {
     public boolean initialized = false;
 
     private void deserializeList(Map<Long, List<ACL>> longKeyMap,
-            InputArchive ia) throws IOException {
+                                 InputArchive ia) throws IOException {
         int i = ia.readInt("map");
         while (i > 0) {
             Long val = ia.readLong("long");
@@ -1219,7 +1219,7 @@ public class DataTree {
     }
 
     private synchronized void serializeList(Map<Long, List<ACL>> longKeyMap,
-            OutputArchive oa) throws IOException {
+                                            OutputArchive oa) throws IOException {
         oa.writeInt(longKeyMap.size(), "map");
         Set<Map.Entry<Long, List<ACL>>> set = longKeyMap.entrySet();
         for (Map.Entry<Long, List<ACL>> val : set) {
@@ -1233,7 +1233,7 @@ public class DataTree {
         }
     }
 
-    //ĞòÁĞ»¯
+    //åºåˆ—åŒ–
     public void serialize(OutputArchive oa, String tag) throws IOException {
         scount = 0;
         serializeList(longKeyMap, oa);
@@ -1246,7 +1246,7 @@ public class DataTree {
     }
 
     /**
-     * ·´ĞòÁĞ»¯
+     * ååºåˆ—åŒ–
      */
     public void deserialize(InputArchive ia, String tag) throws IOException {
         deserializeList(longKeyMap, ia);
@@ -1339,16 +1339,16 @@ public class DataTree {
     }
 
     public void setWatches(long relativeZxid, List<String> dataWatches,
-            List<String> existWatches, List<String> childWatches,
-            Watcher watcher) {
+                           List<String> existWatches, List<String> childWatches,
+                           Watcher watcher) {
         for (String path : dataWatches) {
             DataNode node = getNode(path);
             if (node == null) {
                 watcher.process(new WatchedEvent(EventType.NodeDeleted,
-                            KeeperState.SyncConnected, path));
+                        KeeperState.SyncConnected, path));
             } else if (node.stat.getMzxid() > relativeZxid) {
                 watcher.process(new WatchedEvent(EventType.NodeDataChanged,
-                            KeeperState.SyncConnected, path));
+                        KeeperState.SyncConnected, path));
             } else {
                 this.dataWatches.addWatch(path, watcher);
             }
@@ -1357,7 +1357,7 @@ public class DataTree {
             DataNode node = getNode(path);
             if (node != null) {
                 watcher.process(new WatchedEvent(EventType.NodeCreated,
-                            KeeperState.SyncConnected, path));
+                        KeeperState.SyncConnected, path));
             } else {
                 this.dataWatches.addWatch(path, watcher);
             }
@@ -1366,36 +1366,36 @@ public class DataTree {
             DataNode node = getNode(path);
             if (node == null) {
                 watcher.process(new WatchedEvent(EventType.NodeDeleted,
-                            KeeperState.SyncConnected, path));
+                        KeeperState.SyncConnected, path));
             } else if (node.stat.getPzxid() > relativeZxid) {
                 watcher.process(new WatchedEvent(EventType.NodeChildrenChanged,
-                            KeeperState.SyncConnected, path));
+                        KeeperState.SyncConnected, path));
             } else {
                 this.childWatches.addWatch(path, watcher);
             }
         }
     }
 
-     /**
-      * This method sets the Cversion and Pzxid for the specified node to the
-      * values passed as arguments. The values are modified only if newCversion
-      * is greater than the current Cversion. A NoNodeException is thrown if
-      * a znode for the specified path is not found.
-      *
-      * @param path
-      *     Full path to the znode whose Cversion needs to be modified.
-      *     A "/" at the end of the path is ignored.
-      * @param newCversion
-      *     Value to be assigned to Cversion
-      * @param zxid
-      *     Value to be assigned to Pzxid
-      * @throws KeeperException.NoNodeException
-      *     If znode not found.
-      **/
+    /**
+     * This method sets the Cversion and Pzxid for the specified node to the
+     * values passed as arguments. The values are modified only if newCversion
+     * is greater than the current Cversion. A NoNodeException is thrown if
+     * a znode for the specified path is not found.
+     *
+     * @param path
+     *     Full path to the znode whose Cversion needs to be modified.
+     *     A "/" at the end of the path is ignored.
+     * @param newCversion
+     *     Value to be assigned to Cversion
+     * @param zxid
+     *     Value to be assigned to Pzxid
+     * @throws KeeperException.NoNodeException
+     *     If znode not found.
+     **/
     public void setCversionPzxid(String path, int newCversion, long zxid)
-        throws KeeperException.NoNodeException {
+            throws KeeperException.NoNodeException {
         if (path.endsWith("/")) {
-           path = path.substring(0, path.length() - 1);
+            path = path.substring(0, path.length() - 1);
         }
         DataNode node = nodes.get(path);
         if (node == null) {
