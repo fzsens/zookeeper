@@ -426,10 +426,11 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         if (sessionTracker == null) {
             createSessionTracker();
         }
+        // session追踪，处理session超时等
         startSessionTracker();
         //请求处理器
         setupRequestProcessors();
-
+        // 注册jmx，可以通过jmx获取zkDatabase的一些信息
         registerJMX();
 
         state = State.RUNNING;

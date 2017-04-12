@@ -570,9 +570,11 @@ public class FileTxnLog implements TxnLog {
                     break;
                 }
             }
+            // 最后storedFiles中包含了，文件zxid大于等于zxid，以及小于zxid中文件zxid最大的的文件
             goToNextLog();
             if (!next())
                 return;
+            // 调整hdr到 >= zxid
             while (hdr.getZxid() < zxid) {
                 if (!next())
                     return;
@@ -581,6 +583,7 @@ public class FileTxnLog implements TxnLog {
 
         /**
          * 按照升序的顺序，依次获取log file的输入流到ia
+         * <p></p>
          * go to the next logfile
          * @return true if there is one and false if there is no
          * new file to be read
@@ -647,6 +650,7 @@ public class FileTxnLog implements TxnLog {
                 return false;
             }
             try {
+                // 读取下一个事务
                 long crcValue = ia.readLong("crcvalue");
                 byte[] bytes = Util.readTxnBytes(ia);
                 // Since we preallocate, we define EOF to be an
@@ -664,6 +668,7 @@ public class FileTxnLog implements TxnLog {
                 hdr = new TxnHeader();
                 record = SerializeUtils.deserializeTxn(bytes, hdr);
             } catch (EOFException e) {
+                // 下一个文件
                 LOG.debug("EOF excepton " + e);
                 inputStream.close();
                 inputStream = null;

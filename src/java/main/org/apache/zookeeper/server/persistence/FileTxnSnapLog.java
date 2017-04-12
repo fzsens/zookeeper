@@ -117,7 +117,7 @@ public class FileTxnSnapLog {
     
     /**
      * 从snapshot和transaction log中恢复zk server的数据
-     * 这个方法返回需要重新执行的 zxid
+     * 这个方法返回恢复后最高的zxid
      * this function restores the server 
      * database after reading from the 
      * snapshots and transaction logs
@@ -172,6 +172,7 @@ public class FileTxnSnapLog {
                 itr.close();
             }
         }
+        // 返回最大的zxid
         return highestZxid;
     }
     
