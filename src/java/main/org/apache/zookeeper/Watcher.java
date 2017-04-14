@@ -19,6 +19,8 @@
 package org.apache.zookeeper;
 
 /**
+ * 监听接口
+ *
  * This interface specifies the public interface an event handler class must
  * implement. A ZooKeeper client will get various events from the ZooKeeper
  * server it connects to. An application using such a client handles these
@@ -33,6 +35,8 @@ public interface Watcher {
      */
     public interface Event {
         /**
+         * 连接状态
+         *
          * Enumeration of states the ZooKeeper may be at the event
          */
         public enum KeeperState {
@@ -40,7 +44,9 @@ public interface Watcher {
             @Deprecated
             Unknown (-1),
 
-            /** The client is in the disconnected state - it is not connected
+            /**
+             * 未连接
+             * The client is in the disconnected state - it is not connected
              * to any server in the ensemble. */
             Disconnected (0),
 
@@ -48,18 +54,22 @@ public interface Watcher {
             @Deprecated
             NoSyncConnected (1),
 
-            /** The client is in the connected state - it is connected
+            /**
+             * 已经同步连接
+             * The client is in the connected state - it is connected
              * to a server in the ensemble (one of the servers specified
              * in the host connection parameter during ZooKeeper client
              * creation). */
             SyncConnected (3),
 
             /**
+             * 授权失败
              * Auth failed state
              */
             AuthFailed (4),
 
             /**
+             * 连接到了一台只读服务器
              * The client is connected to a read-only server, that is the
              * server which is not currently connected to the majority.
              * The only operations allowed after receiving this state is
@@ -75,7 +85,9 @@ public interface Watcher {
               */
             SaslAuthenticated(6),
 
-            /** The serving cluster has expired this session. The ZooKeeper
+            /**
+             * session 过期
+             * The serving cluster has expired this session. The ZooKeeper
              * client connection (the session) is no longer valid. You must
              * create a new client connection (instantiate a new ZooKeeper
              * instance) if you with to access the ensemble. */
@@ -117,6 +129,9 @@ public interface Watcher {
             NodeCreated (1),
             NodeDeleted (2),
             NodeDataChanged (3),
+            /**
+             * 子节点的新增和创建，内容修改不会触发这个事件
+             */
             NodeChildrenChanged (4);
 
             private final int intValue;     // Integer representation of value
@@ -141,9 +156,13 @@ public interface Watcher {
                     default:
                         throw new RuntimeException("Invalid integer value for conversion to EventType");
                 }
-            }           
+            }
         }
     }
 
+    /**
+     * 回调方法
+     * @param event 事件
+     */
     abstract public void process(WatchedEvent event);
 }

@@ -640,6 +640,7 @@ public class DataTree {
             this.updateBytes(lastPrefix, (data == null ? 0 : data.length)
                     - (lastdata == null ? 0 : lastdata.length));
         }
+        // 触发监听
         dataWatches.triggerWatch(path, EventType.NodeDataChanged);
         return s;
     }
@@ -666,9 +667,9 @@ public class DataTree {
 
     /**
      * 取值
-     * @param path
-     * @param stat
-     * @param watcher
+     * @param path 路径
+     * @param stat 状态
+     * @param watcher 监听器，实际上是Server-Client通信器
      * @return
      * @throws KeeperException.NoNodeException
      */
@@ -681,6 +682,7 @@ public class DataTree {
         // 同步
         synchronized (n) {
             n.copyStat(stat);
+            // 添加 监听器，也是NIOServerCnxn到监听节点中
             if (watcher != null) {
                 dataWatches.addWatch(path, watcher);
             }

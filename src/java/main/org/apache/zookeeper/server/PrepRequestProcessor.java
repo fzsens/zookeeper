@@ -441,7 +441,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements
                         request.authInfo);
                 version = setDataRequest.getVersion();
                 int currentVersion = nodeRecord.stat.getVersion();
-                // 乐观锁校验
+                // 乐观锁校验，如果传入-1则表示不进行版本校验
                 if (version != -1 && version != currentVersion) {
                     throw new KeeperException.BadVersionException(path);
                 }

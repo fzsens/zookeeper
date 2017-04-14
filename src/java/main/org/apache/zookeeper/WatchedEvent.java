@@ -22,6 +22,8 @@ import org.apache.zookeeper.Watcher.Event.EventType;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
 
 /**
+ *  代表一个Zk事件，封装了连接状态、事件类型、路径
+ *
  *  A WatchedEvent represents a change on the ZooKeeper that a Watcher
  *  is able to respond to.  The WatchedEvent includes exactly what happened,
  *  the current state of the ZooKeeper, and the path of the znode that

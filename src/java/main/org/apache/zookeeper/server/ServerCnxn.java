@@ -41,6 +41,8 @@ import org.apache.zookeeper.proto.RequestHeader;
  *
  * 客户端和服务器之间的连接抽象
  *
+ * 同时也是一个Watcher，通过这个可以进行监听处理
+ *
  * Interface to a Server connection - represents a connection from a client
  * to the server.
  */

@@ -29,7 +29,7 @@ import org.apache.zookeeper.data.Stat;
  * <p/>
  * ZooKeeper provides asynchronous version as equivalent to synchronous APIs.
  *
- * 回调方法接口
+ * 鍥炶皟鏂规硶鎺ュ彛
  */
 public interface AsyncCallback {
 

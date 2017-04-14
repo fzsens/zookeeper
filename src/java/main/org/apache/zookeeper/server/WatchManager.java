@@ -32,7 +32,7 @@ import org.apache.zookeeper.Watcher.Event.EventType;
 import org.apache.zookeeper.Watcher.Event.KeeperState;
 
 /**
- * watcher ������
+ * watcher ������
  * This class manages watches. It allows watches to be associated with a string
  * and removes watchers and their watches in addition to managing triggers.
  */
@@ -93,6 +93,11 @@ public class WatchManager {
         return triggerWatch(path, type, null);
     }
 
+    /**
+     * 触发监听
+     * @param path 路径
+     * @param type 事件类型
+     */
     public Set<Watcher> triggerWatch(String path, EventType type, Set<Watcher> supress) {
         WatchedEvent e = new WatchedEvent(type,
                 KeeperState.SyncConnected, path);
@@ -118,6 +123,7 @@ public class WatchManager {
             if (supress != null && supress.contains(w)) {
                 continue;
             }
+            // 执行
             w.process(e);
         }
         return watchers;
