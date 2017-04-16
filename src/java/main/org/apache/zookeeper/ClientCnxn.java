@@ -451,6 +451,9 @@ public class ClientCnxn {
         return name + suffix;
     }
 
+    /**
+     * 处理事件和回调函数
+     */
     class EventThread extends ZooKeeperThread {
         private final LinkedBlockingQueue<Object> waitingEvents =
                 new LinkedBlockingQueue<Object>();
@@ -470,6 +473,7 @@ public class ClientCnxn {
             setDaemon(true);
         }
 
+        //event
         public void queueEvent(WatchedEvent event) {
             if (event.getType() == EventType.None
                     && sessionState == event.getState()) {
@@ -487,6 +491,10 @@ public class ClientCnxn {
             waitingEvents.add(pair);
         }
 
+        /**
+         *
+         * @param packet server的响应Packet
+         */
         public void queuePacket(Packet packet) {
             if (wasKilled) {
                 synchronized (waitingEvents) {
@@ -560,6 +568,9 @@ public class ClientCnxn {
                     } else if (p.response instanceof ExistsResponse
                             || p.response instanceof SetDataResponse
                             || p.response instanceof SetACLResponse) {
+                        /**
+                         * 各种回调方法触发
+                         */
                         StatCallback cb = (StatCallback) p.cb;
                         if (rc == 0) {
                             if (p.response instanceof ExistsResponse) {
@@ -668,11 +679,13 @@ public class ClientCnxn {
         }
 
         if (p.cb == null) {
+            // 对于需要返回的请求调用，使用while等待Packet完成，使用notifyAll()通知
             synchronized (p) {
                 p.finished = true;
                 p.notifyAll();
             }
         } else {
+            // 对于有回调方法的，交给事件处理线程对回调进行处理
             p.finished = true;
             eventThread.queuePacket(p);
         }
@@ -742,6 +755,8 @@ public class ClientCnxn {
             4096 * 1024);
 
     /**
+     * 发送消息
+     *
      * This class services the outgoing request queue and generates the heart
      * beats. It also spawns the ReadThread.
      */
@@ -751,6 +766,11 @@ public class ClientCnxn {
         private Random r = new Random(System.nanoTime());
         private boolean isFirstConnect = true;
 
+        /**
+         * 读取服务器响应
+         * @param incomingBuffer 读入的byteBuffer
+         * @throws IOException
+         */
         void readResponse(ByteBuffer incomingBuffer) throws IOException {
             ByteBufferInputStream bbis = new ByteBufferInputStream(
                     incomingBuffer);
@@ -760,6 +780,7 @@ public class ClientCnxn {
             replyHdr.deserialize(bbia, "header");
             if (replyHdr.getXid() == -2) {
                 // -2 is the xid for pings
+                // ping 响应 -2
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("Got ping response for sessionid: 0x"
                             + Long.toHexString(sessionId)
@@ -770,7 +791,8 @@ public class ClientCnxn {
                 return;
             }
             if (replyHdr.getXid() == -4) {
-                // -4 is the xid for AuthPacket               
+                // -4 is the xid for AuthPacket
+                // 认证响应 -4
                 if (replyHdr.getErr() == KeeperException.Code.AUTHFAILED.intValue()) {
                     state = States.AUTH_FAILED;
                     eventThread.queueEvent(new WatchedEvent(Watcher.Event.EventType.None,
@@ -827,6 +849,7 @@ public class ClientCnxn {
                 return;
             }
 
+            // 正常的读写请求响应
             Packet packet;
             synchronized (pendingQueue) {
                 if (pendingQueue.size() == 0) {
@@ -836,6 +859,7 @@ public class ClientCnxn {
                 packet = pendingQueue.remove();
             }
             /*
+             × 消息的处理是有序的，因此对响应的处理和请求消息一致都是有序的
              * Since requests are processed in order, we better get a response
              * to the first request!
              */
@@ -903,6 +927,7 @@ public class ClientCnxn {
                     + ", initiating session");
             isFirstConnect = false;
             long sessId = (seenRwServerBefore) ? sessionId : 0;
+            // 创建连接的请求
             ConnectRequest conReq = new ConnectRequest(0, lastZxid,
                     sessionTimeout, sessId, sessionPasswd);
             synchronized (outgoingQueue) {
@@ -1011,6 +1036,9 @@ public class ClientCnxn {
         // throws a LoginException: see startConnect() below.
         private boolean saslLoginFailed = false;
 
+        /**
+         * 开始连接
+         */
         private void startConnect() throws IOException {
             state = States.CONNECTING;
 
@@ -1019,6 +1047,7 @@ public class ClientCnxn {
                 addr = rwServerAddress;
                 rwServerAddress = null;
             } else {
+                // 随机一个地址
                 addr = hostProvider.next(1000);
             }
 
@@ -1046,6 +1075,7 @@ public class ClientCnxn {
             }
             logStartConnect(addr);
 
+            // 调用底层通信器进行连接（只是在网络层面，还没有创建保护seesionId在内的真正连接
             clientCnxnSocket.connect(addr);
         }
 
@@ -1062,6 +1092,7 @@ public class ClientCnxn {
 
         @Override
         public void run() {
+            // 引入当前的调用Thread
             clientCnxnSocket.introduce(this, sessionId);
             clientCnxnSocket.updateNow();
             clientCnxnSocket.updateLastSendAndHeard();
@@ -1082,6 +1113,7 @@ public class ClientCnxn {
                         if (closing || !state.isAlive()) {
                             break;
                         }
+                        // 启动和服务器的连接
                         startConnect();
                         clientCnxnSocket.updateLastSendAndHeard();
                     }
@@ -1140,6 +1172,7 @@ public class ClientCnxn {
                                 ((clientCnxnSocket.getIdleSend() > 1000) ? 1000 : 0);
                         //send a ping request either time is due or no packet sent out within MAX_SEND_PING_INTERVAL
                         if (timeToNextPing <= 0 || clientCnxnSocket.getIdleSend() > MAX_SEND_PING_INTERVAL) {
+                            // ping
                             sendPing();
                             clientCnxnSocket.updateLastSend();
                         } else {
@@ -1151,6 +1184,7 @@ public class ClientCnxn {
 
                     // If we are in read-only mode, seek for read/write server
                     if (state == States.CONNECTEDREADONLY) {
+                        // 搜索 RW SERVER
                         long now = System.currentTimeMillis();
                         int idlePingRwServer = (int) (now - lastPingRwServer);
                         if (idlePingRwServer >= pingRwTimeout) {
@@ -1284,6 +1318,8 @@ public class ClientCnxn {
         }
 
         /**
+         *
+         * 客户端如果已经创建了连接
          * Callback invoked by the ClientCnxnSocket once a connection has been
          * established.
          *
@@ -1328,6 +1364,8 @@ public class ClientCnxn {
                     + (isRO ? " (READ-ONLY mode)" : ""));
             KeeperState eventState = (isRO) ?
                     KeeperState.ConnectedReadOnly : KeeperState.SyncConnected;
+
+            // 发送一个连接创建成功的Event通知应用程序
             eventThread.queueEvent(new WatchedEvent(
                     Watcher.Event.EventType.None,
                     eventState, null));
@@ -1421,18 +1459,19 @@ public class ClientCnxn {
     }
 
     /**
-     * 向Server提交请求
+     * 向Server提交请求，没有回调函数，需要堵塞等待返回
      */
     public ReplyHeader submitRequest(RequestHeader h, Record request,
                                      Record response, WatchRegistration watchRegistration)
             throws InterruptedException {
         ReplyHeader r = new ReplyHeader();
-        // 封裝爲packet
+        // 封装为packet
         Packet packet = queuePacket(h, r, request, response, null, null, null,
                 null, watchRegistration);
+        // 等待返回值，使用等待解决异步问题
         synchronized (packet) {
             while (!packet.finished) {
-                // 有序发送
+                // 堵塞packet等待返回值
                 packet.wait();
             }
         }
@@ -1443,6 +1482,9 @@ public class ClientCnxn {
         sendThread.getClientCnxnSocket().enableWrite();
     }
 
+    /**
+     * 向Server发送Packet，带有回调函数，无返回值。
+     */
     public void sendPacket(Record request, Record response, AsyncCallback cb, int opCode)
             throws IOException {
         // Generate Xid now because it will be sent immediately,

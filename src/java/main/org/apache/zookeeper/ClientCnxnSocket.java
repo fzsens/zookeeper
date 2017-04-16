@@ -33,6 +33,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ *
+ * 低级别的客户端Socket通信
+ *
  * A ClientCnxnSocket does the lower level communication with a socket
  * implementation.
  * 
@@ -114,6 +117,10 @@ abstract class ClientCnxnSocket {
         incomingBuffer = ByteBuffer.allocate(len);
     }
 
+    /**
+     * 处理服务端对connect请求的响应
+     * @throws IOException
+     */
     void readConnectResult() throws IOException {
         if (LOG.isTraceEnabled()) {
             StringBuilder buf = new StringBuilder("0x[");
@@ -139,13 +146,20 @@ abstract class ClientCnxnSocket {
             LOG.warn("Connected to an old server; r-o mode will be unavailable");
         }
 
+        // 获取sessionid
         this.sessionId = conRsp.getSessionId();
+        // 通知SendThread，已经创建的连接
         sendThread.onConnected(conRsp.getTimeOut(), this.sessionId,
                 conRsp.getPasswd(), isRO);
     }
 
     abstract boolean isConnected();
 
+    /**
+     * 和制定的服务器创建连接
+     * @param addr 服务器地址
+     * @throws IOException
+     */
     abstract void connect(InetSocketAddress addr) throws IOException;
 
     abstract SocketAddress getRemoteSocketAddress();

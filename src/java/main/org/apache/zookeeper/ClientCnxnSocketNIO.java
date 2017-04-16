@@ -54,6 +54,8 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
     }
     
     /**
+     *
+     * 处理网络IO
      * @return true if a packet was received
      * @throws InterruptedException
      * @throws IOException
@@ -78,6 +80,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                     recvCount++;
                     readLength();
                 } else if (!initialized) {
+                    // 如果还没有初始化完成，那么响应一定是创建连接的响应
                     readConnectResult();
                     enableRead();
                     if (findSendablePacket(outgoingQueue,
@@ -91,6 +94,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                     updateLastHeard();
                     initialized = true;
                 } else {
+                    //处理server返回的值
                     sendThread.readResponse(incomingBuffer);
                     lenBuffer.clear();
                     incomingBuffer = lenBuffer;
@@ -100,6 +104,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         }
         if (sockKey.isWritable()) {
             synchronized(outgoingQueue) {
+                //
                 Packet p = findSendablePacket(outgoingQueue,
                         cnxn.sendThread.clientTunneledAuthenticationInProgress());
 
@@ -169,6 +174,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
             // This packet must be sent so that the SASL authentication process
             // can proceed, but all other packets should wait until
             // SASL authentication completes.
+            // 除了认真Packet，其他的Packet需要等待认证完成之后才能发送
             ListIterator<Packet> iter = outgoingQueue.listIterator();
             while (iter.hasNext()) {
                 Packet p = iter.next();
@@ -274,6 +280,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
     void registerAndConnect(SocketChannel sock, InetSocketAddress addr) 
     throws IOException {
         sockKey = sock.register(selector, SelectionKey.OP_CONNECT);
+        // 连接是否是可以立刻创建
         boolean immediateConnect = sock.connect(addr);
         if (immediateConnect) {
             sendThread.primeConnection();
@@ -341,7 +348,16 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
     synchronized void wakeupCnxn() {
         selector.wakeup();
     }
-    
+
+    /**
+     * 发送
+     * @param waitTimeOut 超时
+     * @param pendingQueue 已经发送，等待响应
+     * @param outgoingQueue 等待发送
+     * @param cnxn ClientCnxn
+     * @throws IOException
+     * @throws InterruptedException
+     */
     @Override
     void doTransport(int waitTimeOut, List<Packet> pendingQueue, LinkedList<Packet> outgoingQueue,
                      ClientCnxn cnxn)
@@ -358,11 +374,13 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         for (SelectionKey k : selected) {
             SocketChannel sc = ((SocketChannel) k.channel());
             if ((k.readyOps() & SelectionKey.OP_CONNECT) != 0) {
+                // 等待网络层面连接创建完成
                 if (sc.finishConnect()) {
                     updateLastSendAndHeard();
                     sendThread.primeConnection();
                 }
             } else if ((k.readyOps() & (SelectionKey.OP_READ | SelectionKey.OP_WRITE)) != 0) {
+                // 讲outgoingqueue中的packet发送
                 doIO(pendingQueue, outgoingQueue, cnxn);
             }
         }
