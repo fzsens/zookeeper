@@ -238,6 +238,7 @@ public class QuorumCnxManager {
     
     
     /**
+     * 服务器之间创建连接，为了避免重复创建和冲突，只允许sid较大对sid较小的创建连接
      * If this server receives a connection request, then it gives up on the new
      * connection if it wins. Notice that it checks whether it has a connection
      * to this server already or not. If it does, then it sends the smallest
@@ -306,6 +307,7 @@ public class QuorumCnxManager {
 
             // Otherwise start worker threads to receive data.
         } else {
+            // 成功创建连接
             SendWorker sw = new SendWorker(sock, sid);
             RecvWorker rw = new RecvWorker(sock, sid, sw);
             sw.setRecv(rw);
@@ -816,6 +818,7 @@ public class QuorumCnxManager {
                     byte[] msgArray = new byte[length];
                     din.readFully(msgArray, 0, length);
                     ByteBuffer message = ByteBuffer.wrap(msgArray);
+                    LOG.debug("recv message. sid = " + sid);
                     addToRecvQueue(new Message(message.duplicate(), sid));
                 }
             } catch (Exception e) {
@@ -835,7 +838,7 @@ public class QuorumCnxManager {
      * Inserts an element in the specified queue. If the Queue is full, this
      * method removes an element from the head of the Queue and then inserts
      * the element at the tail. It can happen that the an element is removed
-     * by another thread in {@link SendWorker#processMessage() processMessage}
+     * by another thread in {@link SendWorker# processMessage() processMessage}
      * method before this method attempts to remove an element from the queue.
      * This will cause {@link ArrayBlockingQueue#remove() remove} to throw an
      * exception, which is safe to ignore.

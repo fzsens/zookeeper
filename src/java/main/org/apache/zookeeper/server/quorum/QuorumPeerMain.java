@@ -78,7 +78,7 @@ public class QuorumPeerMain {
         try {
             if(args == null|| args.length <=0) {
                 args = new String[1];
-                args[0] = "E:\\work\\TRD\\zookeeper\\conf\\zoo_3.cfg";
+                args[0] = "/home/fzsens/projects/zookeeper/conf/zoo_3.cfg";
             }
             main.initializeAndRun(args);
         } catch (IllegalArgumentException e) {

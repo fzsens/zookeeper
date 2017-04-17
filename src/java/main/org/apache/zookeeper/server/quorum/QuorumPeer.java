@@ -46,6 +46,7 @@ import java.util.*;
  * transactions.</li>
  * <li>Leader - the server will process requests and forward them to followers.
  * A majority of followers must log the request before it can be accepted.
+ * 半数写入原则
  * </ol>
  * <p>
  * This class will setup a datagram socket that will always respond with its
@@ -482,10 +483,13 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
 
     @Override
     public synchronized void start() {
+        // 从snapshot/txnlog中恢复数据
         loadDataBase();
+        // 创建普通请求的网络监听
         cnxnFactory.start();
         // 初始化选举算法
         startLeaderElection();
+        // 开始选举
         super.start();
     }
 

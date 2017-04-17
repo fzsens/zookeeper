@@ -228,11 +228,16 @@ public class FastLeaderElection implements Election {
     protected class Messenger {
 
         /**
+         * 一个选举消息的投递流程
+         * 1. QuorumCnxManager 启动Listener，监听来自各个服务器的请求
+         * 2. 其他的服务器和本机的QuorumCnxManager创建连接之后，QuorumCnxManager会启动RecvWorker等待接受消息
+         * 3. RecvWorker 接受到消息之后，封装未Message，并保持到 recvQueue 中
+         * 4. 选举线程即本法发则一直轮询recvQueue扥带消息到来，获取进行后续的处理
+         *
          * Receives messages from instance of QuorumCnxManager on
          * method run(), and processes such messages.
          * 接收
          */
-
         class WorkerReceiver extends ZooKeeperThread {
             volatile boolean stop;
             QuorumCnxManager manager;
@@ -249,6 +254,7 @@ public class FastLeaderElection implements Election {
                 while (!stop) {
                     // Sleeps on receive
                     try {
+                        //从 QuorumCnxManager 中获取到响应
                         response = manager.pollRecvQueue(3000, TimeUnit.MILLISECONDS);
                         if (response == null) continue;
 
@@ -413,7 +419,7 @@ public class FastLeaderElection implements Election {
                                                 current.getPeerEpoch());
 
                                     } else {
-                                        // 兼容个 3.4.6 之前的版本
+                                        // 兼容在 3.4.6 之前的版本
                                         Vote bcVote = self.getBCVote();
                                         notmsg = new ToSend(
                                                 ToSend.mType.notification,
@@ -531,6 +537,8 @@ public class FastLeaderElection implements Election {
 
     QuorumPeer self;
     Messenger messenger;
+
+    //用于识别每一轮投票选举，有效的投票需要在同一轮投票中
     volatile long logicalclock; /* Election instance */
     long proposedLeader;
     long proposedZxid;
@@ -645,9 +653,9 @@ public class FastLeaderElection implements Election {
      * Check if a pair (server id, zxid) succeeds our
      * current vote.
      * 检查新的投票是否比当前投票更加优先
-     *
-//     * @param id   Server identifier
-//     * @param zxid Last zxid observed by the issuer of this vote
+     * <p>
+     * //     * @param id   Server identifier
+     * //     * @param zxid Last zxid observed by the issuer of this vote
      */
     protected boolean totalOrderPredicate(long newId, long newZxid, long newEpoch, long curId, long curZxid, long curEpoch) {
         LOG.debug("id: " + newId + ", proposed id: " + curId + ", zxid: 0x" +
@@ -678,8 +686,8 @@ public class FastLeaderElection implements Election {
      * 在本轮投票结束后，是否有足够的半数通过的机器
      *
      * @param votes Set of votes
-//     * @param l     Identifier of the vote received last
-//     * @param zxid  zxid of the the vote received last
+     *              //     * @param l     Identifier of the vote received last
+     *              //     * @param zxid  zxid of the the vote received last
      */
     protected boolean termPredicate(
             HashMap<Long, Vote> votes,
@@ -701,11 +709,16 @@ public class FastLeaderElection implements Election {
     }
 
     /**
+     * 确认收到的投票中存在leader
+     *
      * In the case there is a leader elected, and a quorum supporting
      * this leader, we have to check if the leader has voted and acked
      * that it is leading. We need this check to avoid that peers keep
      * electing over and over a peer that has crashed and it is no
      * longer leading.
+     * <p>
+     * 已经选择了一个Leader，并且有多数派同意，这边再次校验Leader的状态为LEADING
+     * 避免选中的leader出现了crash，导致没有leader被选中。
      *
      * @param votes         set of votes
      * @param leader        leader id
@@ -723,6 +736,8 @@ public class FastLeaderElection implements Election {
          * The other two checks are just for the case in which I'm not the
          * leader. If I'm not the leader and I haven't received a message
          * from leader stating that it is leading, then predicate is false.
+         *
+         * 自己是leader，或者votes中有server声明自己是leader
          */
 
         if (leader != self.getId()) {
@@ -854,12 +869,17 @@ public class FastLeaderElection implements Election {
         try {
             // 收到的投票
             HashMap<Long, Vote> recvset = new HashMap<Long, Vote>();
-
+            // map containing out of election votes (LEADING or FOLLOWING)
+            // 维护来自LEADING和FOLLOWING状态的建议，
+            // outofelction保存了"非投票时机"(其他server已经确定了LEADING之后,
+            // 或者FOLLOWING正常无需投票)接受到的其他server的提议,
+            // 检查leader也就是从outoofelection集合中查找自己是否收到了状态为LEADING的server提议.
             HashMap<Long, Vote> outofelection = new HashMap<Long, Vote>();
 
             int notTimeout = finalizeWait;
 
             synchronized (this) {
+                // 逻辑时间增加
                 logicalclock++;
                 // 先给自己投票（更新自己的proposalId）
                 updateProposal(getInitId(), getInitLastLoggedZxid(), getPeerEpoch());
@@ -912,7 +932,7 @@ public class FastLeaderElection implements Election {
                      * Only proceed if the vote comes from a replica in the
                      * voting view.
                      */
-                    LOG.debug("收到{"+n.state+"}状态的通知");
+                    LOG.debug("收到{" + n.state + "}状态的通知");
                     printNotification(n);
                     LOG.debug("##");
                     switch (n.state) {
@@ -920,15 +940,18 @@ public class FastLeaderElection implements Election {
                             // 收到的投票状态为 looking
                             // If notification > current, replace and send messages out
                             if (n.electionEpoch > logicalclock) {
+                                // 如果n的投票轮次 大于 本机的投票轮次，
+                                // 将自己的轮次修改未消息轮次
                                 logicalclock = n.electionEpoch;
+                                // 将之前接受到的投票清除，实际上就是开始新一轮的投票
                                 recvset.clear();
                                 // 进入比较模式
                                 if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch,
                                         getInitId(), getInitLastLoggedZxid(), getPeerEpoch())) {
-                                    // 将自己的投票修改为当前收到的投票
+                                    // 将自己的投票修改为当前收到server的投票
                                     updateProposal(n.leader, n.zxid, n.peerEpoch);
                                 } else {
-                                    // 再次给自己投票
+                                    // 否则再次给自己投票
                                     updateProposal(getInitId(),
                                             getInitLastLoggedZxid(),
                                             getPeerEpoch());
@@ -936,6 +959,8 @@ public class FastLeaderElection implements Election {
                                 // 发出广播消息
                                 sendNotifications();
                             } else if (n.electionEpoch < logicalclock) {
+                                // 如果收到的消息小于本机轮次，旧的投票，显然不能覆盖当前的投票
+                                // 则直接放弃，进入下轮投票
                                 if (LOG.isDebugEnabled()) {
                                     LOG.debug("Notification election epoch is smaller than logicalclock. n.electionEpoch = 0x"
                                             + Long.toHexString(n.electionEpoch)
@@ -944,6 +969,7 @@ public class FastLeaderElection implements Election {
                                 break;
                             } else if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch,
                                     proposedLeader, proposedZxid, proposedEpoch)) {
+                                // 相同轮次的化，比较后接受
                                 updateProposal(n.leader, n.zxid, n.peerEpoch);
                                 sendNotifications();
                             }
@@ -973,11 +999,11 @@ public class FastLeaderElection implements Election {
                                     }
                                 }
 
-                            /*
-                             * This predicate is true once we don't read any new
-                             * relevant message from the reception queue
-                             * 接受到的消息已经处理完
-                             */
+                                /**
+                                 * This predicate is true once we don't read any new
+                                 * relevant message from the reception queue
+                                 * 接受到的消息已经处理完
+                                 */
                                 if (n == null) {
                                     // 修改自己的状态为Leader或者是Leanner
                                     self.setPeerState((proposedLeader == self.getId()) ?
@@ -999,17 +1025,20 @@ public class FastLeaderElection implements Election {
                             break;
                         case FOLLOWING:
                         case LEADING:
-                        /*
-                         * Consider all notifications from the same epoch
-                         * together.
-                         */
+                            /**
+                             * Consider all notifications from the same epoch
+                             * together.
+                             */
+                            // 是否与当前逻辑时钟不符合的消息,如果是否那么说明在另一个选举过程中已经有了选举结果
                             if (n.electionEpoch == logicalclock) {
+                                // 在本次投票选举中，收到的选票
                                 recvset.put(n.sid, new Vote(n.leader,
                                         n.zxid,
                                         n.electionEpoch,
                                         n.peerEpoch));
-
+                                // 是否通过这个LEADER
                                 if (ooePredicate(recvset, outofelection, n)) {
+                                    // 已经通过，修改自己的状态
                                     self.setPeerState((n.leader == self.getId()) ?
                                             ServerState.LEADING : learningState());
 
@@ -1022,17 +1051,19 @@ public class FastLeaderElection implements Election {
                                 }
                             }
 
-                        /*
-                         * Before joining an established ensemble, verify
-                         * a majority is following the same leader.
-                         */
+                            /**
+                             * outofelection 记录LEADING和FOLLOWING状态的选票
+                             *
+                             * Before joining an established ensemble, verify
+                             * a majority is following the same leader.
+                             */
                             outofelection.put(n.sid, new Vote(n.version,
                                     n.leader,
                                     n.zxid,
                                     n.electionEpoch,
                                     n.peerEpoch,
                                     n.state));
-
+                            //加入一个已经存在的集合，先检查大多数的follower是否有相同的Leader
                             if (ooePredicate(outofelection, outofelection, n)) {
                                 synchronized (this) {
                                     logicalclock = n.electionEpoch;
