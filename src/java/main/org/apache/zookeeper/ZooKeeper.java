@@ -132,6 +132,7 @@ public class ZooKeeper {
      * API.
      */
     private static class ZKWatchManager implements ClientWatchManager {
+
         private final Map<String, Set<Watcher>> dataWatches =
             new HashMap<String, Set<Watcher>>();
         private final Map<String, Set<Watcher>> existWatches =
@@ -147,7 +148,11 @@ public class ZooKeeper {
             }
         }
 
-        /* (non-Javadoc)
+        /**
+         *
+         * 通过watchedEvent来获取 Watcher
+         *
+         * (non-Javadoc)
          * @see org.apache.zookeeper.ClientWatchManager#materialize(Event.KeeperState, 
          *                                                        Event.EventType, java.lang.String)
          */
@@ -652,6 +657,7 @@ public class ZooKeeper {
      * Specify the default watcher for the connection (overrides the one
      * specified during construction).
      *
+     * 设置默认的Watcher
      * @param watcher
      */
     public synchronized void register(Watcher watcher) {

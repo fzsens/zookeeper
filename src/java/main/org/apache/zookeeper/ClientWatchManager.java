@@ -21,10 +21,14 @@ package org.apache.zookeeper;
 import java.util.Set;
 
 /**
+ * Client端Watcher管理器
  */
 public interface ClientWatchManager {
     /**
-     * Return a set of watchers that should be notified of the event. The 
+     *
+     * 通过Event获取对应的Watcher集合7
+     *
+     * Return a set of watchers that should be notified of the event. The
      * manager must not notify the watcher(s), however it will update it's 
      * internal structure as if the watches had triggered. The intent being 
      * that the callee is now responsible for notifying the watchers of the 

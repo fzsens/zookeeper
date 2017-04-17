@@ -50,10 +50,6 @@ public class ZooKeeperServerMain {
     public static void main(String[] args) {
         ZooKeeperServerMain main = new ZooKeeperServerMain();
         try {
-            if(args == null|| args.length <=0) {
-                args = new String[1];
-                args[0] = "E:\\work\\TRD\\zookeeper\\conf\\zoo_sample.cfg";
-            }
             main.initializeAndRun(args);
         } catch (IllegalArgumentException e) {
             LOG.error("Invalid arguments, exiting abnormally", e);

@@ -48,14 +48,14 @@ import org.apache.zookeeper.server.ZooKeeperThread;
  * guarantee that there is exactly one connection for every pair of servers that
  * are operating correctly and that can communicate over the network.
  *
- * Í¨¹ıTCPĞ­Òé¹ÜÀíÑ¡¾Ù¹ı³ÌÖĞµÄÃ¿¸öÁ¬½Ó
+ * é€šè¿‡TCPåè®®ç®¡ç†é€‰ä¸¾è¿‡ç¨‹ä¸­çš„æ¯ä¸ªè¿æ¥
  *
  * 
  * If two servers try to start a connection concurrently, then the connection
  * manager uses a very simple tie-breaking mechanism to decide which connection
  * to drop based on the IP addressed of the two parties.
  *
- * Èç¹ûÁ½¸ö»úÆ÷²¢·¢·¢ÆğÁ¬½Ó£¬Ê¹ÓÃµÄ±È½Ïsid´óĞ¡µÄ·½Ê½¾ö³öÊ¤¸º£¬Ö»ÔÊĞísid´óµÄÁ¬½ÓsidĞ¡µÄ£¬²»ÔÊĞísidĞ¡µÄÁ¬½Ódis´óµÄ
+ * å¦‚æœä¸¤ä¸ªæœºå™¨å¹¶å‘å‘èµ·è¿æ¥ï¼Œä½¿ç”¨çš„æ¯”è¾ƒsidå¤§å°çš„æ–¹å¼å†³å‡ºèƒœè´Ÿï¼Œåªå…è®¸sidå¤§çš„è¿æ¥sidå°çš„ï¼Œä¸å…è®¸sidå°çš„è¿æ¥diså¤§çš„
  *
  * For every peer, the manager maintains a queue of messages to send. If the
  * connection to any particular peer drops, then the sender thread puts the
@@ -65,7 +65,7 @@ import org.apache.zookeeper.server.ZooKeeperThread;
  * Although this is not a problem for the leader election, it could be a problem
  * when consolidating peer communication. This is to be verified, though.
  *
- * Î¬»¤ÏûÏ¢¶ÓÁĞ£¬
+ * ç»´æŠ¤æ¶ˆæ¯é˜Ÿåˆ—ï¼Œ
  *
  */
 
@@ -153,7 +153,7 @@ public class QuorumCnxManager {
     }
 
     /**
-     * Leader election ÆÚ¼ä¹ÜÀíÍøÂçIO
+     * Leader election æœŸé—´ç®¡ç†ç½‘ç»œIO
      */
     public QuorumCnxManager(QuorumPeer self) {
         this.recvQueue = new ArrayBlockingQueue<Message>(RECV_CAPACITY);
@@ -392,7 +392,7 @@ public class QuorumCnxManager {
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("Connected to server " + sid);
                 }
-                // ³õÊ¼»¯Á¬½Ó
+                // åˆå§‹åŒ–è¿æ¥
                 initiateConnection(sock, sid);
             } catch (UnresolvedAddressException e) {
                 // Sun doesn't include the address that causes this
@@ -513,7 +513,7 @@ public class QuorumCnxManager {
     }
 
     /**
-     * Ñ¡¾ÙÊ±ºòµÄ¼àÌıÆ÷
+     * é€‰ä¸¾æ—¶å€™çš„ç›‘å¬å™¨
      * Thread to listen on some port
      */
     public class Listener extends ZooKeeperThread {

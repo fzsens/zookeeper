@@ -54,6 +54,9 @@ public class Follower extends Learner{
     }
 
     /**
+     *
+     * follower 跟随 leader
+     *
      * the main method called by the follower to follow the leader
      *
      * @throws InterruptedException

@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 import javax.management.JMException;
 import java.io.File;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -75,6 +76,10 @@ public class QuorumPeerMain {
     public static void main(String[] args) {
         QuorumPeerMain main = new QuorumPeerMain();
         try {
+            if(args == null|| args.length <=0) {
+                args = new String[1];
+                args[0] = "E:\\work\\TRD\\zookeeper\\conf\\zoo_3.cfg";
+            }
             main.initializeAndRun(args);
         } catch (IllegalArgumentException e) {
             LOG.error("Invalid arguments, exiting abnormally", e);

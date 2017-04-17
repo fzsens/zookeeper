@@ -843,6 +843,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                         }
                         break;
                     case FOLLOWING:
+                        // 处于following模式下
                         try {
                             LOG.info("FOLLOWING");
                             setFollower(makeFollower(logFactory));
@@ -850,6 +851,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
                         } catch (Exception e) {
                             LOG.warn("Unexpected exception", e);
                         } finally {
+                            // 如果跟随出现了偏差，再次进入LOOKING模式
                             follower.shutdown();
                             setFollower(null);
                             setPeerState(ServerState.LOOKING);

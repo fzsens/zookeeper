@@ -142,6 +142,8 @@ public class Learner {
     }
 
     /**
+     *
+     * 一般情况下Follower在这个地方进行循环，从服务器读取Packet信息
      * read a packet from the leader
      *
      * @param pp

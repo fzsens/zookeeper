@@ -84,6 +84,7 @@ public final class StaticHostProvider implements HostProvider {
             throw new IllegalArgumentException(
                     "A HostProvider may not be empty!");
         }
+        // 打乱排序
         Collections.shuffle(this.serverAddresses);
     }
 
@@ -96,6 +97,7 @@ public final class StaticHostProvider implements HostProvider {
         if (currentIndex == serverAddresses.size()) {
             currentIndex = 0;
         }
+        // 如果上次刚被使用，就延迟
         if (currentIndex == lastIndex && spinDelay > 0) {
             try {
                 Thread.sleep(spinDelay);
