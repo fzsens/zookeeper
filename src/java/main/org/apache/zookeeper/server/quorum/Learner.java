@@ -310,7 +310,8 @@ public class Learner {
     } 
     
     /**
-     * Finally, synchronize our history with the Leader. 
+     * Finally, synchronize our history with the Leader.
+     * 同时也会启动Zkserver
      * @param newLeaderZxid
      * @throws IOException
      * @throws InterruptedException
@@ -454,6 +455,7 @@ public class Learner {
         ack.setZxid(ZxidUtils.makeZxid(newEpoch, 0));
         writePacket(ack, true);
         sock.setSoTimeout(self.tickTime * self.syncLimit);
+        //启动服务
         zk.startup();
         /*
          * Update the election vote here to ensure that all members of the

@@ -233,7 +233,7 @@ public class FastLeaderElection implements Election {
          * 2. 其他的服务器和本机的QuorumCnxManager创建连接之后，QuorumCnxManager会启动RecvWorker等待接受消息
          * 3. RecvWorker 接受到消息之后，封装未Message，并保持到 recvQueue 中
          * 4. 选举线程即本法发则一直轮询recvQueue扥带消息到来，获取进行后续的处理
-         *
+         * <p>
          * Receives messages from instance of QuorumCnxManager on
          * method run(), and processes such messages.
          * 接收
@@ -538,10 +538,20 @@ public class FastLeaderElection implements Election {
     QuorumPeer self;
     Messenger messenger;
 
-    //用于识别每一轮投票选举，有效的投票需要在同一轮投票中
+    //用于识别每一轮投票选举，有效的投票需要在同一轮投票中，每一次发起一次选举，都会+1
+    // 吐槽一下，这个真是一个匪夷所思的命名，可以叫做electionRound这样显然更容易理解一点
     volatile long logicalclock; /* Election instance */
+    /**
+     * 提案leader id
+     */
     long proposedLeader;
+    /**
+     * zxid
+     */
     long proposedZxid;
+    /**
+     * 选举纪元
+     */
     long proposedEpoch;
 
 
@@ -588,6 +598,11 @@ public class FastLeaderElection implements Election {
         this.messenger = new Messenger(manager);
     }
 
+    /**
+     * 离开选举，清理接受到的消息
+     *
+     * @param v
+     */
     private void leaveInstance(Vote v) {
         if (LOG.isDebugEnabled()) {
             LOG.debug("About to leave FLE instance: leader="
@@ -692,7 +707,7 @@ public class FastLeaderElection implements Election {
     protected boolean termPredicate(
             HashMap<Long, Vote> votes,
             Vote vote) {
-
+        //校验半数通过vote
         HashSet<Long> set = new HashSet<Long>();
 
         /*
@@ -710,10 +725,10 @@ public class FastLeaderElection implements Election {
 
     /**
      * 确认收到的投票中存在leader
-     *
+     * <p>
      * In the case there is a leader elected, and a quorum supporting
      * this leader, we have to check if the leader has voted and acked
-     * that it is leading. We need this check to avoid that peers keep
+     * that it is leading.  s keep
      * electing over and over a peer that has crashed and it is no
      * longer leading.
      * <p>
@@ -741,8 +756,11 @@ public class FastLeaderElection implements Election {
          */
 
         if (leader != self.getId()) {
-            if (votes.get(leader) == null) predicate = false;
-            else if (votes.get(leader).getState() != ServerState.LEADING) predicate = false;
+            if (votes.get(leader) == null) {
+                predicate = false;
+            } else if (votes.get(leader).getState() != ServerState.LEADING) {
+                predicate = false;
+            }
         } else if (logicalclock != electionEpoch) {
             predicate = false;
         }
@@ -751,6 +769,8 @@ public class FastLeaderElection implements Election {
     }
 
     /**
+     * 确认outofelection中选举出的leader的有效性
+     *
      * This predicate checks that a leader has been elected. It doesn't
      * make a lot of sense without context (check lookForLeader) and it
      * has been separated for testing purposes.
@@ -763,7 +783,10 @@ public class FastLeaderElection implements Election {
     protected boolean ooePredicate(HashMap<Long, Vote> recv,
                                    HashMap<Long, Vote> ooe,
                                    Notification n) {
-
+        /**
+         * termPredicate 首先判断recv中是否有半数成员对 n 提案达成一致
+         * checkLeader 判断ooe中以及该选择出的leader处于LEADING的状态
+         */
         return (termPredicate(recv, new Vote(n.version,
                 n.leader,
                 n.zxid,
@@ -899,7 +922,7 @@ public class FastLeaderElection implements Election {
                 /*
                  * Remove next notification from queue, times out after 2 times
                  * the termination time
-                 * 从接收到的信息中获得投票
+                 * 从接收到的信息中获得投票，并recequeue中删除这个消息
                  */
                 Notification n = recvqueue.poll(notTimeout,
                         TimeUnit.MILLISECONDS);
@@ -925,10 +948,10 @@ public class FastLeaderElection implements Election {
                     notTimeout = (tmpTimeOut < maxNotificationInterval ?
                             tmpTimeOut : maxNotificationInterval);
                     LOG.info("Notification time out: " + notTimeout);
-                }
-                // 收到了投票
-                else if (self.getVotingView().containsKey(n.sid)) {
-                    /*
+                } else if (self.getVotingView().containsKey(n.sid)) {
+                    /**
+                     * 收到了来自有选举权的Server的投票
+                     *
                      * Only proceed if the vote comes from a replica in the
                      * voting view.
                      */
@@ -941,11 +964,11 @@ public class FastLeaderElection implements Election {
                             // If notification > current, replace and send messages out
                             if (n.electionEpoch > logicalclock) {
                                 // 如果n的投票轮次 大于 本机的投票轮次，
-                                // 将自己的轮次修改未消息轮次
+                                // 将自己的轮次修改为收到消息轮次
                                 logicalclock = n.electionEpoch;
                                 // 将之前接受到的投票清除，实际上就是开始新一轮的投票
                                 recvset.clear();
-                                // 进入比较模式
+                                // 收到消息的优先级是否更高
                                 if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch,
                                         getInitId(), getInitLastLoggedZxid(), getPeerEpoch())) {
                                     // 将自己的投票修改为当前收到server的投票
@@ -960,7 +983,8 @@ public class FastLeaderElection implements Election {
                                 sendNotifications();
                             } else if (n.electionEpoch < logicalclock) {
                                 // 如果收到的消息小于本机轮次，旧的投票，显然不能覆盖当前的投票
-                                // 则直接放弃，进入下轮投票
+                                // 收到的消息已经没有意义，则直接放弃，获取下一个通知
+                                // 在此之前已经有通过sendNotifications()发送本轮次的logicalColock给其他的SERVER
                                 if (LOG.isDebugEnabled()) {
                                     LOG.debug("Notification election epoch is smaller than logicalclock. n.electionEpoch = 0x"
                                             + Long.toHexString(n.electionEpoch)
@@ -969,7 +993,7 @@ public class FastLeaderElection implements Election {
                                 break;
                             } else if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch,
                                     proposedLeader, proposedZxid, proposedEpoch)) {
-                                // 相同轮次的化，比较后接受
+                                // 相同轮次的话，比较后接受
                                 updateProposal(n.leader, n.zxid, n.peerEpoch);
                                 sendNotifications();
                             }
@@ -994,6 +1018,8 @@ public class FastLeaderElection implements Election {
                                         TimeUnit.MILLISECONDS)) != null) {
                                     if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch,
                                             proposedLeader, proposedZxid, proposedEpoch)) {
+                                        // 1. 如果新收到的消息中有比之前消息优先级更高的消息，则跳出循环，意味着这次半数投票无法生效
+                                        // 核心的问题在于，zk的选举必须要保证选举出来的leader具有最大的zxid
                                         recvqueue.put(n);
                                         break;
                                     }
@@ -1002,7 +1028,7 @@ public class FastLeaderElection implements Election {
                                 /**
                                  * This predicate is true once we don't read any new
                                  * relevant message from the reception queue
-                                 * 接受到的消息已经处理完
+                                 * 如果n == null，可知 1. 并未执行
                                  */
                                 if (n == null) {
                                     // 修改自己的状态为Leader或者是Leanner
@@ -1017,6 +1043,14 @@ public class FastLeaderElection implements Election {
                                     leaveInstance(endVote);
                                     return endVote;
                                 }
+                                /**
+                                 * 如果在执行上面这句的过程中，接收到一个优先级更高的notification，会发生什么事情？为了简单描述，
+                                 * 假设这个notification最后被majority的机器接受
+                                 * 这样一次执行后，可能会出现不收敛的情况
+                                 * 情况1：选举自己为LEADER，则显然，这个LEADER在后面的lead()中无法得到majority机器的NEWLEADER响应，重新进入选举
+                                 * 情况2：选举出自己为FOLLOWER，则必然有一个LEADER被选举出来，而且这个LEADER也会出现情况1，无法称为正常的LEADER，因此本机重新进入选举
+                                 * finalizeWait时间的加入，减少了出现不收敛的可能性
+                                 */
                             }
                             break;
                         // observing不需要加入选举

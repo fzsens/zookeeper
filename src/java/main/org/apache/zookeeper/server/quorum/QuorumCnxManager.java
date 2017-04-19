@@ -18,6 +18,10 @@
 
 package org.apache.zookeeper.server.quorum;
 
+import org.apache.zookeeper.server.ZooKeeperThread;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -29,18 +33,11 @@ import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.channels.UnresolvedAddressException;
 import java.util.Enumeration;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.Date;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.zookeeper.server.ZooKeeperServer;
-import org.apache.zookeeper.server.ZooKeeperThread;
 
 /**
  * This class implements a connection manager for leader election using TCP. It
@@ -111,12 +108,25 @@ public class QuorumCnxManager {
 
     /*
      * Mapping from Peer to Thread number
+     *
+     * key is sid
+     */
+
+    /**
+     * sid ： 对应的sender
      */
     final ConcurrentHashMap<Long, SendWorker> senderWorkerMap;
+    /**
+     * sid ： 等待发送给这个sid的消息
+     */
     final ConcurrentHashMap<Long, ArrayBlockingQueue<ByteBuffer>> queueSendMap;
+    /**
+     * sid : 最后一个发送的message
+     */
     final ConcurrentHashMap<Long, ByteBuffer> lastMessageSent;
 
-    /*
+    /**
+     * 接受到的message
      * Reception queue
      */
     public final ArrayBlockingQueue<Message> recvQueue;
@@ -195,6 +205,7 @@ public class QuorumCnxManager {
         DataOutputStream dout = null;
         try {
             // Sending id and challenge
+            // 向需要建立连接的服务器写入自己的sid
             dout = new DataOutputStream(sock.getOutputStream());
             dout.writeLong(self.getId());
             dout.flush();
@@ -211,6 +222,9 @@ public class QuorumCnxManager {
             closeSocket(sock);
             // Otherwise proceed with the connection
         } else {
+
+            // 与接受连接类似，创建以sid为key的映射表，并且启动关联的sender和receiver
+
             SendWorker sw = new SendWorker(sock, sid);
             RecvWorker rw = new RecvWorker(sock, sid, sw);
             sw.setRecv(rw);
@@ -239,6 +253,7 @@ public class QuorumCnxManager {
     
     /**
      * 服务器之间创建连接，为了避免重复创建和冲突，只允许sid较大对sid较小的创建连接
+     *
      * If this server receives a connection request, then it gives up on the new
      * connection if it wins. Notice that it checks whether it has a connection
      * to this server already or not. If it does, then it sends the smallest
@@ -251,6 +266,7 @@ public class QuorumCnxManager {
         try {
             // Read server id
             DataInputStream din = new DataInputStream(sock.getInputStream());
+            // 首先读取发送方的sid
             sid = din.readLong();
             if (sid < 0) { // this is not a server id but a protocol version (see ZOOKEEPER-1633)
                 sid = din.readLong();
@@ -287,6 +303,7 @@ public class QuorumCnxManager {
         }
         
         //If wins the challenge, then close the new connection.
+        // 将sid和自己的sid比较，只允许 较大的sid向较小的sid发起连接
         if (sid < self.getId()) {
             /*
              * This replica might still believe that the connection to sid is
@@ -302,12 +319,14 @@ public class QuorumCnxManager {
              * Now we start a new connection
              */
             LOG.debug("Create new connection to server: " + sid);
+            // 关闭这个socket
             closeSocket(sock);
+            // 主动连接对应的服务器
             connectOne(sid);
 
             // Otherwise start worker threads to receive data.
         } else {
-            // 成功创建连接
+            // 成功创建连接，初始化SendWorker和RecWorker
             SendWorker sw = new SendWorker(sock, sid);
             RecvWorker rw = new RecvWorker(sock, sid, sw);
             sw.setRecv(rw);
@@ -316,14 +335,16 @@ public class QuorumCnxManager {
             
             if(vsw != null)
                 vsw.finish();
-            
+
+            // 创建sid和sender的关联
             senderWorkerMap.put(sid, sw);
             
             if (!queueSendMap.containsKey(sid)) {
                 queueSendMap.put(sid, new ArrayBlockingQueue<ByteBuffer>(
                         SEND_CAPACITY));
             }
-            
+
+            // 启动
             sw.start();
             rw.start();
             
@@ -369,6 +390,9 @@ public class QuorumCnxManager {
     }
     
     /**
+     *
+     * 指定 sid，由本机发起连接
+     *
      * Try to establish a connection to server with id sid.
      * 
      *  @param sid  server id
@@ -388,6 +412,9 @@ public class QuorumCnxManager {
                 if (LOG.isDebugEnabled()) {
                     LOG.debug("Opening channel to server " + sid);
                 }
+                /**
+                 * 主动创建连接
+                 */
                 Socket sock = new Socket();
                 setSockOpts(sock);
                 sock.connect(self.getView().get(sid).electionAddr, cnxTO);
@@ -427,6 +454,8 @@ public class QuorumCnxManager {
     
     
     /**
+     * QuorumCnxManager的Listener不会主动创建连接
+     * 在消息的时候，使用这个方法尝试主动创建连接
      * Try to establish a connection with each server if one
      * doesn't exist.
      */
@@ -483,6 +512,7 @@ public class QuorumCnxManager {
      *            Reference to socket
      */
     private void setSockOpts(Socket sock) throws SocketException {
+        // 不使用Nagle，而是每次有消息就直接发送出去
         sock.setTcpNoDelay(true);
         sock.setSoTimeout(self.tickTime * self.syncLimit);
     }
@@ -548,13 +578,16 @@ public class QuorumCnxManager {
                     LOG.info("My election bind port: " + addr.toString());
                     setName(self.quorumPeers.get(self.getId()).electionAddr
                             .toString());
+                    // 绑定自己选举监听
                     ss.bind(addr);
                     while (!shutdown) {
+                        // 等待连接
                         Socket client = ss.accept();
                         setSockOpts(client);
                         LOG.info("Received connection request "
                                 + client.getRemoteSocketAddress());
                         receiveConnection(client);
+                        // 重置重试次数
                         numRetries = 0;
                     }
                 } catch (IOException e) {
@@ -606,6 +639,8 @@ public class QuorumCnxManager {
         Socket sock;
         RecvWorker recvWorker;
         volatile boolean running = true;
+
+        // 数据输出流，主要通过这个来完成消息的发送
         DataOutputStream dout;
 
         /**
@@ -644,7 +679,11 @@ public class QuorumCnxManager {
         synchronized RecvWorker getRecvWorker(){
             return recvWorker;
         }
-                
+
+        /**
+         * 结束但钱的连接
+         * @return
+         */
         synchronized boolean finish() {
             if (LOG.isDebugEnabled()) {
                 LOG.debug("Calling finish for " + sid);
@@ -673,7 +712,12 @@ public class QuorumCnxManager {
             threadCnt.decrementAndGet();
             return running;
         }
-        
+
+        /**
+         * 发送消息
+         * @param b bytebuffer
+         * @throws IOException
+         */
         synchronized void send(ByteBuffer b) throws IOException {
             byte[] msgBytes = new byte[b.capacity()];
             try {
@@ -687,6 +731,7 @@ public class QuorumCnxManager {
             dout.write(b.array());
             dout.flush();
         }
+
 
         @Override
         public void run() {
@@ -720,7 +765,9 @@ public class QuorumCnxManager {
             
             try {
                 while (running && !shutdown && sock != null) {
-
+                    /**
+                     * 轮循queueSendMap，获取等待发送的数据
+                     */
                     ByteBuffer b = null;
                     try {
                         ArrayBlockingQueue<ByteBuffer> bq = queueSendMap
@@ -803,6 +850,8 @@ public class QuorumCnxManager {
             try {
                 while (running && !shutdown && sock != null) {
                     /**
+                     * 首先读取消息的长度
+                     *
                      * Reads the first int to determine the length of the
                      * message
                      */
@@ -816,7 +865,9 @@ public class QuorumCnxManager {
                      * Allocates a new ByteBuffer to receive the message
                      */
                     byte[] msgArray = new byte[length];
+                    // 等待文本传输完毕
                     din.readFully(msgArray, 0, length);
+                    // 封装成消息，并放入到 recvQueue
                     ByteBuffer message = ByteBuffer.wrap(msgArray);
                     LOG.debug("recv message. sid = " + sid);
                     addToRecvQueue(new Message(message.duplicate(), sid));
@@ -935,6 +986,9 @@ public class QuorumCnxManager {
     }
 
     /**
+     *
+     * 获取接受到的消息
+     *
      * Retrieves and removes a message at the head of this queue,
      * waiting up to the specified wait time if necessary for an element to
      * become available.

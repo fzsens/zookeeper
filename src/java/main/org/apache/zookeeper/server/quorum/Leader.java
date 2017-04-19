@@ -415,6 +415,7 @@ public class Leader {
                 }
                 Thread.sleep(self.tickTime);
                 self.tick++;
+                // 如果没有收到超过半数的follower的统一，直接返回，进入一下了的选举
                 return;
             }
             
@@ -733,6 +734,7 @@ public class Leader {
 
     /**
      * create a proposal and send it out to all the members
+     * 创建提案并发送
      * 
      * @param request
      * @return the proposal that is queued to send to all the members
